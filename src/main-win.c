@@ -1151,7 +1151,18 @@ static void on_about(GtkAction* act, FmMainWin* win)
 
         gtk_builder_add_from_file(builder, PACKAGE_UI_DIR "/about.ui", NULL);
 #endif
+        if (!builder)
+        {
+            g_string_free(comments, TRUE);
+            return;
+        }
         about_dlg = GTK_ABOUT_DIALOG(gtk_builder_get_object(builder, "dlg"));
+        if (!about_dlg)
+        {
+            g_object_unref(builder);
+            g_string_free(comments, TRUE);
+            return;
+        }
 #if FM_CHECK_VERSION(1, 2, 0)
         g_string_append_printf(comments, _("using LibFM ver. %s\n"), fm_version());
 #endif
@@ -1807,11 +1818,18 @@ static void on_del(GtkAction* act, FmMainWin* win)
 
 static void on_copy_path(GtkAction* action, FmMainWin* win)
 {
-    GdkDisplay *dpy = gtk_widget_get_display(GTK_WIDGET(win));
-    GtkClipboard *clipboard = gtk_clipboard_get_for_display(dpy, GDK_SELECTION_CLIPBOARD);
-    GString *str = g_string_sized_new(128);
+    GdkDisplay *dpy;
+    GtkClipboard *clipboard;
+    GString *str;
     FmPathList *files = fm_folder_view_dup_selected_file_paths(win->folder_view);
     GList *fl;
+
+    if (!files)
+        return;
+
+    dpy = gtk_widget_get_display(GTK_WIDGET(win));
+    clipboard = gtk_clipboard_get_for_display(dpy, GDK_SELECTION_CLIPBOARD);
+    str = g_string_sized_new(128);
 
     for (fl = fm_path_list_peek_head_link(files); fl; fl = fl->next)
     {
@@ -1823,6 +1841,7 @@ static void on_copy_path(GtkAction* action, FmMainWin* win)
     }
     gtk_clipboard_set_text(clipboard, str->str, str->len);
     g_string_free(str, TRUE);
+    fm_path_list_unref(files);
 }
 
 static void on_preference(GtkAction* act, FmMainWin* win)
@@ -2122,6 +2141,7 @@ static void on_tab_page_status_text(FmTabPage* page, guint type, const char* sta
             break;
         /* otherwise put selection info on statusbar, continue with update */
         status_text = fm_tab_page_get_status_text(page, FM_STATUS_TEXT_SELECTED_FILES);
+        /* fall through */
     case FM_STATUS_TEXT_SELECTED_FILES:
         gtk_statusbar_pop(win->statusbar, win->statusbar_ctx2);
         if(status_text)

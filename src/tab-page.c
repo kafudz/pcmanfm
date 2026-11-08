@@ -1134,6 +1134,7 @@ static void fm_tab_page_chdir_without_history(FmTabPage* page, FmPath* path)
         if (page->own_config)
             page->columns = g_strdupv(columns);
     }
+    g_strfreev(columns);
 #else
     /* since 1.0.2 sorting should be applied on model instead */
     fm_folder_view_sort(page->folder_view, page->sort_type, page->sort_by);

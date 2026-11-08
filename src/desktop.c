@@ -2352,6 +2352,7 @@ static void update_background(FmDesktop* desktop, int is_it)
                 }
             }
             /* continue to execute code in case FM_WP_CENTER */
+            /* fall through */
         case FM_WP_CENTER:
             x = (dest_w - src_w)/2;
             y = (dest_h - src_h)/2;
@@ -5686,6 +5687,11 @@ void fm_desktop_preference(GtkAction *act, FmDesktop *desktop)
 
         builder = gtk_builder_new();
         gtk_builder_add_from_file(builder, PACKAGE_UI_DIR "/desktop-pref.ui", NULL);
+        if (!gtk_builder_get_object(builder, "dlg"))
+        {
+            g_object_unref(builder);
+            return;
+        }
         desktop_pref_dlg = GTK_WINDOW(gtk_builder_get_object(builder, "dlg"));
         item = gtk_builder_get_object(builder, "wallpaper");
         g_signal_connect(item, "file-set", G_CALLBACK(on_wallpaper_set), desktop);

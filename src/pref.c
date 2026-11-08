@@ -536,8 +536,13 @@ static void on_add_to_blacklist_clicked(GtkButton *button, GtkListStore *model)
     int i;
     GtkTreeIter it;
 
-    if (item == NULL || item[0] == '\0') /* cancelled or empty */
+    if (item == NULL) /* cancelled */
         return;
+    if (item[0] == '\0') /* empty */
+    {
+        g_free(item);
+        return;
+    }
     /* add a row to list */
     gtk_list_store_append(model, &it);
     gtk_list_store_set(model, &it, 0, item, 1, TRUE, -1);
@@ -575,15 +580,19 @@ static void on_remove_from_blacklist_clicked(GtkButton *button, GtkTreeView *vie
         gtk_tree_row_reference_free(l->data);
     }
     g_list_free(rows);
-    /* rebuild the blacklist */
+    /* rebuild the blacklist, skipping the system-wide entries */
     if (gtk_tree_model_get_iter_first(model, &it))
     {
+        gboolean is_user;
         bl = g_new(char *, gtk_tree_model_iter_n_children(model, NULL) + 1);
         i = 0;
         do
         {
-            gtk_tree_model_get(model, &it, 0, &item, -1);
-            bl[i++] = item;
+            gtk_tree_model_get(model, &it, 0, &item, 1, &is_user, -1);
+            if (is_user)
+                bl[i++] = item;
+            else
+                g_free(item);
         } while (gtk_tree_model_iter_next(model, &it));
         bl[i] = NULL;
     }
@@ -628,8 +637,13 @@ static void on_add_to_whitelist_clicked(GtkButton *button, GtkListStore *model)
     int i;
     GtkTreeIter it;
 
-    if (item == NULL || item[0] == '\0') /* cancelled or empty */
+    if (item == NULL) /* cancelled */
         return;
+    if (item[0] == '\0') /* empty */
+    {
+        g_free(item);
+        return;
+    }
     /* add a row to list */
     gtk_list_store_append(model, &it);
     gtk_list_store_set(model, &it, 0, item, -1);
@@ -704,6 +718,11 @@ void fm_edit_preference( GtkWindow* parent, int page )
         int i, n;
 
         gtk_builder_add_from_file(builder, PACKAGE_UI_DIR "/pref.ui", NULL);
+        if (!gtk_builder_get_object(builder, "dlg"))
+        {
+            g_object_unref(builder);
+            return;
+        }
         pref_dlg = GTK_WINDOW(gtk_builder_get_object(builder, "dlg"));
         notebook = GTK_NOTEBOOK(gtk_builder_get_object(builder, "notebook"));
 

@@ -48,6 +48,8 @@ struct _AutoRun
     GCancellable* cancel;
     char *content_type;
     gboolean skipped;
+    gboolean detection_done;
+    gboolean dialog_closed;
 };
 
 static void on_dlg_response(GtkDialog* dlg, int res, gpointer user_data);
@@ -90,6 +92,15 @@ static void _run_app(GAppInfo *app, GMount *mount)
     g_object_unref(gf);
 }
 
+static void autorun_data_free(AutoRun *data)
+{
+    g_object_unref(data->cancel);
+    g_object_unref(data->store);
+    g_object_unref(data->mount);
+    g_free(data->content_type);
+    g_slice_free(AutoRun, data);
+}
+
 static void on_dlg_response(GtkDialog* dlg, int res, gpointer user_data)
 {
     AutoRun* data = (AutoRun*)user_data;
@@ -129,11 +140,11 @@ static void on_dlg_response(GtkDialog* dlg, int res, gpointer user_data)
     g_signal_handlers_disconnect_by_func(data->mount, on_unmount, data);
     gtk_widget_destroy(GTK_WIDGET(dlg));
 
-    g_object_unref(data->cancel);
-    g_object_unref(data->store);
-    g_object_unref(data->mount);
-    g_free(data->content_type);
-    g_slice_free(AutoRun, data);
+    /* The content type detection callback may still be pending; in that case
+     * let it free the data when it runs, otherwise we would use freed memory. */
+    data->dialog_closed = TRUE;
+    if (data->detection_done)
+        autorun_data_free(data);
 
     pcmanfm_unref();
 }
@@ -147,6 +158,14 @@ static void on_content_type_finished(GObject* src_obj, GAsyncResult* res, gpoint
     const char *def_type = NULL;
     GAppInfo *app;
     gboolean mixed_content = FALSE;
+
+    data->detection_done = TRUE;
+    if (data->dialog_closed)
+    {
+        /* the dialog was already closed while detection was pending */
+        autorun_data_free(data);
+        return;
+    }
 
     types = g_mount_guess_content_type_finish(mount, res, NULL);
     if(types)
@@ -261,15 +280,23 @@ inline static void show_autorun_dlg(GVolume* vol, GMount* mount)
 
     data = g_slice_new(AutoRun);
     data->cancel = g_cancellable_new();
+    data->content_type = NULL;
+    data->skipped = FALSE;
+    data->detection_done = FALSE;
+    data->dialog_closed = FALSE;
 
     builder = gtk_builder_new();
-    gtk_builder_add_from_file(builder, PACKAGE_UI_DIR "/autorun.ui", NULL);
+    if (!gtk_builder_add_from_file(builder, PACKAGE_UI_DIR "/autorun.ui", NULL))
+    {
+        g_object_unref(builder);
+        g_object_unref(data->cancel);
+        g_slice_free(AutoRun, data);
+        return;
+    }
     data->dlg = GTK_DIALOG(gtk_builder_get_object(builder, "dlg"));
     data->view = GTK_TREE_VIEW(gtk_builder_get_object(builder, "listview"));
     data->type = GTK_LABEL(gtk_builder_get_object(builder, "type"));
     data->dont_ask = (GtkToggleButton*)gtk_builder_get_object(builder, "dont_ask");
-    data->content_type = NULL;
-    data->skipped = FALSE;
     icon = GTK_IMAGE(gtk_builder_get_object(builder, "icon"));
     g_object_unref(builder);
 

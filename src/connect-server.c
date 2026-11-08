@@ -231,7 +231,12 @@ void open_connect_dialog(GtkWindow *parent)
     GtkBuilder *builder = gtk_builder_new();
     ConnectDlg *dlg = g_slice_new(ConnectDlg);
 
-    gtk_builder_add_from_file(builder, PACKAGE_UI_DIR "/connect.ui", NULL);
+    if (!gtk_builder_add_from_file(builder, PACKAGE_UI_DIR "/connect.ui", NULL))
+    {
+        g_object_unref(builder);
+        g_slice_free(ConnectDlg, dlg);
+        return;
+    }
     dlg->dlg = GTK_WINDOW(gtk_builder_get_object(builder, "dlg"));
     g_signal_connect(dlg->dlg, "response", G_CALLBACK(on_response), dlg);
     dlg->ok = GTK_WIDGET(gtk_builder_get_object(builder, "ok"));

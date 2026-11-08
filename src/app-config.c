@@ -588,6 +588,8 @@ void fm_app_config_load_desktop_config(GKeyFile *kf, const char *group, FmDeskto
             g_free(cfg->wallpapers[i]);
         g_free(cfg->wallpapers);
     }
+    cfg->wallpapers = NULL;
+    cfg->wallpapers_configured = 0;
     g_free(cfg->wallpaper);
     cfg->wallpaper = NULL;
     fm_key_file_get_int(kf, group, "wallpapers_configured", &cfg->wallpapers_configured);
@@ -864,7 +866,7 @@ void fm_app_config_load_from_profile(FmAppConfig* cfg, const char* name)
  * @by: (allow-none) (out): location to save sort columns
  * @view_mode: (allow-none) (out): location to save view mode
  * @show_hidden: (allow-none) (out): location to save show hidden flag
- * @columns: (allow-none) (out) (transfer none): location to save columns list
+ * @columns: (allow-none) (out) (transfer full): location to save columns list
  *
  * Returns: %TRUE if @path has individual configuration.
  */
@@ -894,11 +896,20 @@ gboolean fm_app_config_get_config_for_path(FmPath *path, GtkSortType *mode,
         *show_hidden = app_config->show_hidden;
 #if FM_CHECK_VERSION(1, 0, 2)
     if (columns)
-        *columns = app_config->columns;
+        *columns = app_config->columns ? g_strdupv(app_config->columns) : NULL;
 #endif
     fc = fm_folder_config_open(path);
     if (!fm_folder_config_is_empty(fc))
+    {
+#if FM_CHECK_VERSION(1, 0, 2)
+        if (columns)
+        {
+            g_strfreev(*columns);
+            *columns = NULL;
+        }
+#endif
         _parse_config_for_path(fc, mode, by, view_mode, show_hidden, columns);
+    }
     else if (!fm_path_is_native(path))
     {
         /* if path is non-native then try the scheme */
@@ -911,7 +922,16 @@ gboolean fm_app_config_get_config_for_path(FmPath *path, GtkSortType *mode,
         fm_folder_config_close(fc, NULL);
         fc = fm_folder_config_open(sub_path);
         if (!fm_folder_config_is_empty(fc))
+        {
+#if FM_CHECK_VERSION(1, 0, 2)
+            if (columns)
+            {
+                g_strfreev(*columns);
+                *columns = NULL;
+            }
+#endif
             _parse_config_for_path(fc, mode, by, view_mode, show_hidden, columns);
+        }
         /* if path is search://... then use predefined values */
         else if (strncmp(fm_path_get_basename(sub_path), "search:", 7) == 0)
         {
@@ -923,7 +943,8 @@ gboolean fm_app_config_get_config_for_path(FmPath *path, GtkSortType *mode,
             if (columns)
             {
                 static char *def[] = {"name", "desc", "dirname", "size", "mtime", NULL};
-                *columns = def;
+                g_strfreev(*columns);
+                *columns = g_strdupv(def);
             }
 #endif
         }

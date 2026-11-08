@@ -57,7 +57,8 @@ static void single_inst_client_free(SingleInstClient* client)
 {
     g_io_channel_shutdown(client->channel, FALSE, NULL);
     g_io_channel_unref(client->channel);
-    g_source_remove(client->watch);
+    if (client->watch)
+        g_source_remove(client->watch);
     g_free(client->cwd);
     g_ptr_array_foreach(client->argv, (GFunc)g_free, NULL);
     g_ptr_array_free(client->argv, TRUE);
@@ -66,11 +67,14 @@ static void single_inst_client_free(SingleInstClient* client)
 }
 
 /* FIXME: need to document IPC protocol format */
-static void pass_args_to_existing_instance(const GOptionEntry* opt_entries, int screen_num, int sock)
+static gboolean pass_args_to_existing_instance(const GOptionEntry* opt_entries, int screen_num, int sock)
 {
     const GOptionEntry* ent;
     FILE* f = fdopen(sock, "w");
     char* escaped;
+
+    if (!f) /* fdopen() failed, leave the socket open for the caller to close */
+        return FALSE;
 
     /* pass cwd */
     char* cwd = g_get_current_dir();
@@ -162,6 +166,7 @@ static void pass_args_to_existing_instance(const GOptionEntry* opt_entries, int 
     }
     fclose(f);
     g_free(cwd);
+    return TRUE;
 }
 
 /**
@@ -181,6 +186,7 @@ SingleInstResult single_inst_init(SingleInstData* data)
     int ret;
     int reuse;
     char *dir_sep;
+    gboolean bound = FALSE;
 
     data->io_channel = NULL;
     data->io_watch = 0;
@@ -200,7 +206,8 @@ SingleInstResult single_inst_init(SingleInstData* data)
     if(connect(data->sock, (struct sockaddr*)&addr, addr_len) == 0)
     {
         /* connected successfully, pass args in opt_entries to server process as argv and exit. */
-        pass_args_to_existing_instance(data->opt_entries, data->screen_num, data->sock);
+        if(pass_args_to_existing_instance(data->opt_entries, data->screen_num, data->sock))
+            data->sock = -1; /* the socket is closed together with the stream */
         return SINGLE_INST_CLIENT;
     }
 
@@ -220,22 +227,45 @@ SingleInstResult single_inst_init(SingleInstData* data)
     reuse = 1;
     ret = setsockopt( data->sock, SOL_SOCKET, SO_REUSEADDR, &reuse, sizeof(reuse) );
     if(ret || bind(data->sock, (struct sockaddr*)&addr, addr_len) == -1)
-        return SINGLE_INST_ERROR;
+        goto _error;
+    bound = TRUE;
 
     data->io_channel = g_io_channel_unix_new(data->sock);
     if(data->io_channel == NULL)
-        return SINGLE_INST_ERROR;
+        goto _error;
 
     g_io_channel_set_encoding(data->io_channel, NULL, NULL);
     g_io_channel_set_buffered(data->io_channel, FALSE);
 
     if(listen(data->sock, 5) == -1)
-        return SINGLE_INST_ERROR;
+        goto _error;
 
     data->io_watch = g_io_add_watch(data->io_channel,
                                     G_IO_IN|G_IO_ERR|G_IO_PRI|G_IO_HUP,
                                     (GIOFunc)on_server_socket_event, data);
+    if(data->io_watch == 0)
+        goto _error;
     return SINGLE_INST_SERVER;
+
+_error:
+    if(data->io_watch)
+    {
+        g_source_remove(data->io_watch);
+        data->io_watch = 0;
+    }
+    if(data->io_channel)
+    {
+        g_io_channel_unref(data->io_channel);
+        data->io_channel = NULL;
+    }
+    if(data->sock >= 0)
+    {
+        close(data->sock);
+        data->sock = -1;
+    }
+    if(bound)
+        unlink(addr.sun_path);
+    return SINGLE_INST_ERROR;
 }
 
 /**
@@ -405,11 +435,13 @@ static gboolean on_server_socket_event(GIOChannel* ioc, GIOCondition cond, gpoin
 static void get_socket_name(SingleInstData* data, char* buf, int len)
 {
     const char* dpy = g_getenv("DISPLAY");
+    const char* p = NULL;
     char* host = NULL;
     int dpynum;
     if(dpy)
+        p = strrchr(dpy, ':');
+    if(p)
     {
-        const char* p = strrchr(dpy, ':');
         host = g_strndup(dpy, (p - dpy));
         dpynum = atoi(p + 1);
     }
@@ -426,5 +458,6 @@ static void get_socket_name(SingleInstData* data, char* buf, int len)
                 dpynum,
                 g_get_user_name());
 #endif
+    g_free(host);
 }
 

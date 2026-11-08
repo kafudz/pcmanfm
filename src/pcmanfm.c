@@ -105,10 +105,8 @@ static gboolean pcmanfm_run(gint screen_num);
 static void unix_signal_handler(int sig_num)
 {
     /* postpond the signal handling by using a pipe */
-    if (write(signal_pipe[1], &sig_num, sizeof(sig_num)) != sizeof(sig_num)) {
-        g_critical("cannot bounce the signal, stop");
-        exit(2);
-    }
+    if (write(signal_pipe[1], &sig_num, sizeof(sig_num)) != sizeof(sig_num))
+        _exit(2); /* only async-signal-safe functions may be used here */
 }
 
 static gboolean on_unix_signal(GIOChannel* ch, GIOCondition cond, gpointer user_data)
