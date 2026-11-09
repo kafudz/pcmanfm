@@ -2110,6 +2110,61 @@ static void _clear_bg_cache(FmDesktop *self)
     }
 }
 
+/* Scale @pix according to the wallpaper mode so it either fits inside or
+ * completely covers the @dest_w x @dest_h area.  Returns a new reference. */
+static GdkPixbuf* scale_wallpaper(GdkPixbuf* pix, int dest_w, int dest_h,
+                                  FmWallpaperMode mode)
+{
+    int src_w, src_h;
+    int new_w, new_h;
+
+    if (!pix || dest_w <= 0 || dest_h <= 0)
+        return NULL;
+
+    src_w = gdk_pixbuf_get_width(pix);
+    src_h = gdk_pixbuf_get_height(pix);
+    if (src_w <= 0 || src_h <= 0)
+        return NULL;
+
+    if (mode == FM_WP_STRETCH || mode == FM_WP_SCREEN)
+    {
+        new_w = dest_w;
+        new_h = dest_h;
+    }
+    else if (mode == FM_WP_FIT || mode == FM_WP_CROP)
+    {
+        gdouble w_ratio = (gdouble)dest_w / src_w;
+        gdouble h_ratio = (gdouble)dest_h / src_h;
+        gdouble ratio = (mode == FM_WP_FIT) ? MIN(w_ratio, h_ratio)
+                                            : MAX(w_ratio, h_ratio);
+
+        /* Round instead of truncating.  Truncation could make the image one
+         * pixel smaller than the area it must cover, which leaves a visible
+         * line at the right/bottom edge in crop mode. */
+        new_w = (int)(src_w * ratio + 0.5);
+        new_h = (int)(src_h * ratio + 0.5);
+        if (mode == FM_WP_FIT)
+        {
+            new_w = MIN(new_w, dest_w);
+            new_h = MIN(new_h, dest_h);
+        }
+        else
+        {
+            new_w = MAX(new_w, dest_w);
+            new_h = MAX(new_h, dest_h);
+        }
+    }
+    else
+        return (GdkPixbuf*)g_object_ref(pix);
+
+    new_w = MAX(new_w, 1);
+    new_h = MAX(new_h, 1);
+    if (new_w == src_w && new_h == src_h)
+        return (GdkPixbuf*)g_object_ref(pix);
+
+    return gdk_pixbuf_scale_simple(pix, new_w, new_h, GDK_INTERP_BILINEAR);
+}
+
 static void update_background(FmDesktop* desktop, int is_it)
 {
     GtkWidget* widget = (GtkWidget*)desktop;
@@ -2313,54 +2368,42 @@ static void update_background(FmDesktop* desktop, int is_it)
 #endif
         if(gdk_pixbuf_get_has_alpha(pix)
             || desktop->conf.wallpaper_mode == FM_WP_CENTER
-            || desktop->conf.wallpaper_mode == FM_WP_FIT)
+            || desktop->conf.wallpaper_mode == FM_WP_FIT
+            || desktop->conf.wallpaper_mode == FM_WP_CROP)
         {
             gdk_cairo_set_source_color(cr, &desktop->conf.desktop_bg);
             cairo_rectangle(cr, 0, 0, dest_w, dest_h);
             cairo_fill(cr);
         }
 
-        switch(desktop->conf.wallpaper_mode)
+        scaled = scale_wallpaper(pix, dest_w, dest_h,
+                                 desktop->conf.wallpaper_mode);
+        if (scaled)
         {
-        case FM_WP_TILE:
-            break;
-        case FM_WP_STRETCH:
-        case FM_WP_SCREEN:
-            if(dest_w == src_w && dest_h == src_h)
-                scaled = (GdkPixbuf*)g_object_ref(pix);
-            else
-                scaled = gdk_pixbuf_scale_simple(pix, dest_w, dest_h, GDK_INTERP_BILINEAR);
             g_object_unref(pix);
             pix = scaled;
-            break;
+            src_w = gdk_pixbuf_get_width(pix);
+            src_h = gdk_pixbuf_get_height(pix);
+        }
+
+        switch(desktop->conf.wallpaper_mode)
+        {
+        case FM_WP_CENTER:
         case FM_WP_FIT:
         case FM_WP_CROP:
-            if(dest_w != src_w || dest_h != src_h)
-            {
-                gdouble w_ratio = (float)dest_w / src_w;
-                gdouble h_ratio = (float)dest_h / src_h;
-                gdouble ratio = (desktop->conf.wallpaper_mode == FM_WP_FIT)
-                    ? MIN(w_ratio, h_ratio)
-                    : MAX(w_ratio, h_ratio);
-                if(ratio != 1.0)
-                {
-                    src_w *= ratio;
-                    src_h *= ratio;
-                    scaled = gdk_pixbuf_scale_simple(pix, src_w, src_h, GDK_INTERP_BILINEAR);
-                    g_object_unref(pix);
-                    pix = scaled;
-                }
-            }
-            /* continue to execute code in case FM_WP_CENTER */
-            /* fall through */
-        case FM_WP_CENTER:
-            x = (dest_w - src_w)/2;
-            y = (dest_h - src_h)/2;
+            x = (dest_w - src_w) / 2;
+            y = (dest_h - src_h) / 2;
             break;
-        case FM_WP_COLOR: ; /* handled above */
+        default:
+            break;
         }
-        gdk_cairo_set_source_pixbuf(cr, pix, x, y);
-        cairo_paint(cr);
+        if (pix)
+        {
+            gdk_cairo_set_source_pixbuf(cr, pix, x, y);
+            cairo_paint(cr);
+            g_object_unref(pix);
+            pix = NULL;
+        }
         cairo_destroy(cr);
         cache->wallpaper_mode = desktop->conf.wallpaper_mode;
     }
