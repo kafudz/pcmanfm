@@ -1127,7 +1127,13 @@ struct _FmDesktopAccessiblePriv
     guint action_idle_handler;
 };
 
+#if GLIB_CHECK_VERSION(2, 38, 0)
+static gint fm_desktop_accessible_private_offset = 0;
+#define FM_DESKTOP_ACCESSIBLE_GET_PRIVATE(_d_) \
+    ((FmDesktopAccessiblePriv *) G_STRUCT_MEMBER_P((_d_), fm_desktop_accessible_private_offset))
+#else
 #define FM_DESKTOP_ACCESSIBLE_GET_PRIVATE(_d_) G_TYPE_INSTANCE_GET_PRIVATE(_d_, FM_TYPE_DESKTOP_ACCESSIBLE, FmDesktopAccessiblePriv)
+#endif
 
 static void atk_component_interface_init(AtkComponentIface *iface);
 static void atk_selection_interface_init(AtkSelectionIface *iface);
@@ -1141,12 +1147,16 @@ static gpointer fm_desktop_accessible_parent_class = NULL;
 static void fm_desktop_accessible_class_intern_init(gpointer klass)
 {
     fm_desktop_accessible_parent_class = g_type_class_peek_parent(klass);
+#if GLIB_CHECK_VERSION(2, 38, 0)
+    if (fm_desktop_accessible_private_offset != 0)
+        g_type_class_adjust_private_offset(klass, &fm_desktop_accessible_private_offset);
+#endif
     fm_desktop_accessible_class_init((FmDesktopAccessibleClass*)klass);
 }
 
 GType fm_desktop_accessible_get_type(void)
 {
-    static volatile gsize type_id_volatile = 0;
+    static gsize type_id_volatile = 0;
 
     if (g_once_init_enter(&type_id_volatile))
     {
@@ -1170,6 +1180,10 @@ GType fm_desktop_accessible_get_type(void)
                                 query.instance_size,
                                 (GInstanceInitFunc)fm_desktop_accessible_init,
                                 0);
+#if GLIB_CHECK_VERSION(2, 38, 0)
+        fm_desktop_accessible_private_offset =
+            g_type_add_instance_private(g_define_type_id, sizeof(FmDesktopAccessiblePriv));
+#endif
         G_IMPLEMENT_INTERFACE(ATK_TYPE_COMPONENT, atk_component_interface_init)
         G_IMPLEMENT_INTERFACE(ATK_TYPE_SELECTION, atk_selection_interface_init)
         G_IMPLEMENT_INTERFACE(ATK_TYPE_ACTION, atk_action_interface_init)
@@ -1485,7 +1499,9 @@ static void fm_desktop_accessible_class_init(FmDesktopAccessibleClass *klass)
     atk_class->ref_child = fm_desktop_accessible_ref_child;
     atk_class->initialize = fm_desktop_accessible_initialize;
 
+#if !GLIB_CHECK_VERSION(2, 38, 0)
     g_type_class_add_private(klass, sizeof(FmDesktopAccessiblePriv));
+#endif
 }
 
 /* ---- interface implementation ---- */
