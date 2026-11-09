@@ -443,6 +443,20 @@ static void on_autorun_toggled(GtkToggleButton* btn, GtkWidget *autorun_choices_
         gtk_widget_set_sensitive(autorun_choices_area, new_val);
 }
 
+/* gtk_tree_row_reference_get_path() returns a newly allocated path */
+static gboolean row_ref_get_iter(GtkTreeModel *model, GtkTreeRowReference *ref,
+                                 GtkTreeIter *it)
+{
+    GtkTreePath *tp = gtk_tree_row_reference_get_path(ref);
+    gboolean ok;
+
+    if (tp == NULL)
+        return FALSE;
+    ok = gtk_tree_model_get_iter(model, it, tp);
+    gtk_tree_path_free(tp);
+    return ok;
+}
+
 static void on_remove_autorun_choice_clicked(GtkButton *button, GtkTreeView *view)
 {
     GtkTreeSelection *tree_sel = gtk_tree_view_get_selection(view);
@@ -460,7 +474,7 @@ static void on_remove_autorun_choice_clicked(GtkButton *button, GtkTreeView *vie
     /* remove rows from model */
     for (l = rows; l; l = l->next)
     {
-        if (gtk_tree_model_get_iter(model, &it, gtk_tree_row_reference_get_path(l->data)))
+        if (row_ref_get_iter(model, l->data, &it))
         {
             char *type;
 
@@ -573,7 +587,7 @@ static void on_remove_from_blacklist_clicked(GtkButton *button, GtkTreeView *vie
     /* remove rows from model */
     for (l = rows; l; l = l->next)
     {
-        if (gtk_tree_model_get_iter(model, &it, gtk_tree_row_reference_get_path(l->data)))
+        if (row_ref_get_iter(model, l->data, &it))
             gtk_list_store_remove(GTK_LIST_STORE(model), &it);
         else
             g_critical("the item not found in model");
@@ -674,7 +688,7 @@ static void on_remove_from_whitelist_clicked(GtkButton *button, GtkTreeView *vie
     /* remove rows from model */
     for (l = rows; l; l = l->next)
     {
-        if (gtk_tree_model_get_iter(model, &it, gtk_tree_row_reference_get_path(l->data)))
+        if (row_ref_get_iter(model, l->data, &it))
             gtk_list_store_remove(GTK_LIST_STORE(model), &it);
         else
             g_critical("the item not found in model");
