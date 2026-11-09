@@ -604,14 +604,16 @@ gboolean pcmanfm_can_open_path_in_terminal(FmPath* dir)
 {
     GFile *gf;
     char *wd;
+    gboolean ok;
 
     if (fm_path_is_native(dir))
         return TRUE;
     gf = fm_path_to_gfile(dir);
     wd = g_file_get_path(gf);
     g_object_unref(gf);
+    ok = (wd != NULL);
     g_free(wd);
-    return (wd != NULL);
+    return ok;
 }
 
 void pcmanfm_open_folder_in_terminal(GtkWindow* parent, FmPath* dir)

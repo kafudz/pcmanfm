@@ -1818,10 +1818,38 @@ static void queue_layout_items(FmDesktop* desktop)
         desktop->idle_layout = gdk_threads_add_idle((GSourceFunc)on_idle_layout, desktop);
 }
 
+#if GTK_CHECK_VERSION(3, 0, 0)
+/* The desktop window gets desktop_bg as its background-color from a user CSS
+ * provider in every widget state, and user rules override the theme. So the
+ * "selected" state of the window's own style context yields desktop_bg as the
+ * selection background and an unrelated foreground, which makes selected
+ * labels unreadable. Take the selection look from the theme's icon view. */
+static GtkStyleContext *selection_style = NULL;
+
+static GtkStyleContext *get_selection_style(GtkWidget *widget)
+{
+    if (G_UNLIKELY(selection_style == NULL))
+    {
+        GtkWidgetPath *path = gtk_widget_path_new();
+
+        gtk_widget_path_append_type(path, GTK_TYPE_ICON_VIEW);
+        selection_style = gtk_style_context_new();
+        gtk_style_context_set_screen(selection_style,
+                                     gtk_widget_get_screen(widget));
+        gtk_style_context_set_path(selection_style, path);
+        gtk_widget_path_free(path);
+        gtk_style_context_add_class(selection_style, GTK_STYLE_CLASS_VIEW);
+        gtk_style_context_add_class(selection_style, GTK_STYLE_CLASS_CELL);
+    }
+    return selection_style;
+}
+#endif
+
 static void paint_item(FmDesktop* self, FmDesktopItem* item, cairo_t* cr, GdkRectangle* expose_area, GdkPixbuf* icon)
 {
 #if GTK_CHECK_VERSION(3, 0, 0)
     GtkStyleContext* style;
+    GtkStyleContext* sel_style;
 #else
     GtkStyle* style;
 #endif
@@ -1859,21 +1887,21 @@ static void paint_item(FmDesktop* self, FmDesktopItem* item, cairo_t* cr, GdkRec
     {
         state = GTK_CELL_RENDERER_SELECTED;
 
-        cairo_save(cr);
-        gdk_cairo_rectangle(cr, &item->text_rect);
 #if GTK_CHECK_VERSION(3, 0, 0)
-        gtk_style_context_get_background_color(style, GTK_STATE_FLAG_SELECTED, &rgba);
+        sel_style = get_selection_style(widget);
+        gtk_style_context_set_state(sel_style, GTK_STATE_FLAG_SELECTED);
+        gtk_render_background(sel_style, cr, item->text_rect.x,
+                              item->text_rect.y, item->text_rect.width,
+                              item->text_rect.height);
+        gtk_style_context_get_color(sel_style, GTK_STATE_FLAG_SELECTED, &rgba);
         gdk_cairo_set_source_rgba(cr, &rgba);
 #else
+        cairo_save(cr);
+        gdk_cairo_rectangle(cr, &item->text_rect);
         gdk_cairo_set_source_color(cr, &style->bg[GTK_STATE_SELECTED]);
-#endif
         cairo_clip(cr);
         cairo_paint(cr);
         cairo_restore(cr);
-#if GTK_CHECK_VERSION(3, 0, 0)
-        gtk_style_context_get_color(style, GTK_STATE_FLAG_SELECTED, &rgba);
-        gdk_cairo_set_source_rgba(cr, &rgba);
-#else
         gdk_cairo_set_source_color(cr, &style->fg[GTK_STATE_SELECTED]);
 #endif
     }
@@ -4360,9 +4388,9 @@ static void on_realize(GtkWidget* w)
     css_data = g_strdup_printf("FmDesktop {\n"
                                    "background-color: #%02x%02x%02x\n"
                                "}",
-                               self->conf.desktop_bg.red/256,
-                               self->conf.desktop_bg.green/256,
-                               self->conf.desktop_bg.blue/256);
+                               self->conf.desktop_bg.red/257,
+                               self->conf.desktop_bg.green/257,
+                               self->conf.desktop_bg.blue/257);
     gtk_css_provider_load_from_data(self->css, css_data, -1, NULL);
     g_free(css_data);
 #endif
@@ -4926,6 +4954,17 @@ static void fm_desktop_destroy(GtkObject *object)
         g_free(self->conf.folder);
     }
 
+#if GTK_CHECK_VERSION(3, 0, 0)
+    /* release the provider created in fm_desktop_init() */
+    if (self->css)
+    {
+        gtk_style_context_remove_provider(gtk_widget_get_style_context((GtkWidget*)self),
+                                          GTK_STYLE_PROVIDER(self->css));
+        g_object_unref(self->css);
+        self->css = NULL;
+    }
+#endif
+
     _clear_bg_cache(self);
 
     /* cancel any pending search timeout */
@@ -5459,12 +5498,16 @@ static void on_bg_color_set(GtkColorButton *btn, FmDesktop *desktop)
     if (!gdk_color_equal(&desktop->conf.desktop_bg, &new_val))
     {
 #if GTK_CHECK_VERSION(3, 0, 0)
-        char *css_data = g_strdup_printf("FmDesktop {\n"
-                                             "background-color: #%02x%02x%02x\n"
-                                         "}", new_val.red/256, new_val.green/256,
-                                         new_val.blue/256);
-        gtk_css_provider_load_from_data(desktop->css, css_data, -1, NULL);
-        g_free(css_data);
+        if (desktop->css) /* NULL if the desktop was destroyed meanwhile */
+        {
+            char *css_data = g_strdup_printf("FmDesktop {\n"
+                                                 "background-color: #%02x%02x%02x\n"
+                                             "}", new_val.red/257,
+                                             new_val.green/257,
+                                             new_val.blue/257);
+            gtk_css_provider_load_from_data(desktop->css, css_data, -1, NULL);
+            g_free(css_data);
+        }
 #endif
         desktop->conf.desktop_bg = new_val;
         queue_config_save(desktop);
@@ -5988,6 +6031,15 @@ void fm_desktop_manager_finalize()
     win_group = NULL;
 
     g_signal_handler_disconnect(gtk_icon_theme_get_default(), icon_theme_changed);
+    icon_theme_changed = 0;
+
+#if GTK_CHECK_VERSION(3, 0, 0)
+    if (selection_style)
+    {
+        g_object_unref(selection_style);
+        selection_style = NULL;
+    }
+#endif
 
     if(acc_grp)
         g_object_unref(acc_grp);

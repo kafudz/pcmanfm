@@ -1238,7 +1238,10 @@ static void on_launch(GtkAction* act, FmMainWin* win)
     cmd = fm_get_user_input(GTK_WINDOW(win), _("Run a command"),
                             _("Enter a command to run:"), NULL);
     if (cmd == NULL || cmd[0] == '\0') /* cancelled or empty */
+    {
+        g_free(cmd);
         return;
+    }
     cwd = fm_path_to_str(fm_tab_page_get_cwd(win->current_page));
     def = g_get_current_dir();
     if (chdir(cwd) != 0) /* error */

@@ -659,6 +659,9 @@ void fm_app_config_load_from_key_file(FmAppConfig* cfg, GKeyFile* kf)
     char *tmp;
     char **tmpv;
     int tmp_int, i;
+#if FM_CHECK_VERSION(1, 0, 2)
+    gboolean have_view_mode;
+#endif
 
     /* behavior */
     fm_key_file_get_int(kf, "config", "bm_open_method", &cfg->bm_open_method);
@@ -725,6 +728,7 @@ void fm_app_config_load_from_key_file(FmAppConfig* cfg, GKeyFile* kf)
     /* default values for folder views */
 #if FM_CHECK_VERSION(1, 0, 2)
     tmp = g_key_file_get_string(kf, "ui", "view_mode", NULL);
+    have_view_mode = (tmp != NULL); /* tmp is freed below */
     if (tmp)
     {
         if (tmp[0] >= '0' && tmp[0] <= '9') /* backward compatibility */
@@ -733,7 +737,7 @@ void fm_app_config_load_from_key_file(FmAppConfig* cfg, GKeyFile* kf)
             tmp_int = fm_standard_view_mode_from_str(tmp);
         g_free(tmp);
     }
-    if (tmp &&
+    if (have_view_mode &&
 #else
     if(fm_key_file_get_int(kf, "ui", "view_mode", &tmp_int) &&
 #endif
@@ -993,7 +997,7 @@ void fm_app_config_save_config_for_path(FmPath *path, GtkSortType mode, gint by,
         fc = fm_folder_config_open(path);
         fm_path_unref(path);
         /* allow to create new entry only if we got valid columns */
-        if (fm_folder_config_is_empty(fc) && (columns != NULL && columns[0] != NULL))
+        if (fm_folder_config_is_empty(fc) && (columns == NULL || columns[0] == NULL))
         {
             fm_folder_config_close(fc, NULL);
             /* save columns is mandatory for search view */

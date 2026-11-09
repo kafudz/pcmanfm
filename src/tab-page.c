@@ -1069,6 +1069,9 @@ static void fm_tab_page_chdir_without_history(FmTabPage* page, FmPath* path)
                                                          &page->sort_by,
                                                          &view_mode,
                                                          &show_hidden, &columns);
+    /* drop columns of the previous folder, they are set again below if needed */
+    g_strfreev(page->columns);
+    page->columns = NULL;
     if (!page->own_config)
         /* bug #3615242: view mode is reset to default when changing directory */
         view_mode = page->view_mode;
