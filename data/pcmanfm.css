@@ -64,16 +64,16 @@ tooltip.background {
 /* ---- Toolbar ----------------------------------------------------------- */
 
 toolbar {
-    padding: 6px 8px;
+    padding: 2px 4px;
     border-bottom: 1px solid @pcmanfm_line;
     background-image: none;
 }
 
 toolbar button {
-    min-width: 32px;
-    min-height: 32px;
+    min-width: 26px;
+    min-height: 26px;
     margin: 0 1px;
-    padding: 0 6px;
+    padding: 0 4px;
     border-color: transparent;
     border-radius: 8px;
     background-image: none;
@@ -97,8 +97,14 @@ toolbar button:disabled {
 
 toolbar separator {
     min-width: 1px;
-    margin: 8px 6px;
+    margin: 5px 4px;
     background-color: @pcmanfm_line;
+}
+
+/* The address entry in the toolbar matches the smaller buttons. */
+toolbar entry {
+    min-height: 26px;
+    padding: 0 8px;
 }
 
 /* ---- Buttons ----------------------------------------------------------- */
