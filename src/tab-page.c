@@ -153,7 +153,12 @@ static void init_pane_css(void)
         "    padding-right: 0;\n"
         "}\n"
         ".pane-locbox {\n"
-        "    padding: 2px 6px 2px 6px;\n"
+        "    padding: 6px 10px;\n"
+        "}\n"
+        ".pane-locbox entry,\n"
+        ".pane-locbox button {\n"
+        "    min-height: 28px;\n"
+        "    margin: 1px 2px;\n"
         "}\n",
         -1, NULL);
 }
@@ -518,9 +523,9 @@ static FmTabPagePane *_pane_new_primary(FmTabPage *page)
     gtk_button_set_relief(GTK_BUTTON(pane->close_btn), GTK_RELIEF_NONE);
     gtk_button_set_focus_on_click(GTK_BUTTON(pane->close_btn), FALSE);
     gtk_widget_set_tooltip_text(pane->close_btn, _("Close this pane"));
-    gtk_box_pack_start(GTK_BOX(pane->loc_box), pane->entry, TRUE, TRUE, 0);
-    gtk_box_pack_start(GTK_BOX(pane->loc_box), pane->bar, TRUE, TRUE, 0);
-    gtk_box_pack_end(GTK_BOX(pane->loc_box), pane->close_btn, FALSE, FALSE, 0);
+    gtk_box_pack_start(GTK_BOX(pane->loc_box), pane->entry, TRUE, TRUE, 4);
+    gtk_box_pack_start(GTK_BOX(pane->loc_box), pane->bar, TRUE, TRUE, 4);
+    gtk_box_pack_end(GTK_BOX(pane->loc_box), pane->close_btn, FALSE, FALSE, 4);
     gtk_box_pack_start(GTK_BOX(pane->box), pane->loc_box, FALSE, TRUE, 0);
     gtk_box_pack_start(GTK_BOX(pane->box), GTK_WIDGET(page->folder_view),
                        TRUE, TRUE, 0);

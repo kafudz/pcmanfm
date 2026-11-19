@@ -114,21 +114,11 @@ scrollbar {
     padding-bottom: 8px;
 }
 
-/* Keep pane dividers discreet, with a small square close control. */
+/* Keep pane dividers discreet. */
 paned > separator {
     min-width: 1px;
     min-height: 1px;
     padding: 0;
     border: 0;
     background: alpha(#000000, 0.10);
-}
-
-paned > separator::before {
-    min-width: 10px;
-    min-height: 10px;
-    margin: 0;
-    padding: 0;
-    border: 1px solid alpha(#000000, 0.24);
-    border-radius: 2px;
-    background: #ffffff;
 }
