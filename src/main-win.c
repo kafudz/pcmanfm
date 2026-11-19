@@ -1040,7 +1040,8 @@ static void fm_main_win_init(FmMainWin *win)
 
     /* notebook - it contains both side pane and folder view(s) */
     win->notebook = (GtkNotebook*)gtk_notebook_new();
-    gtk_notebook_set_scrollable(win->notebook, TRUE);
+    /* no tab scroll arrows: keep the tab bar clean/minimal */
+    gtk_notebook_set_scrollable(win->notebook, FALSE);
     gtk_container_set_border_width(GTK_CONTAINER(win->notebook), 0);
     gtk_notebook_set_show_border(win->notebook, FALSE);
     _do_settings_hack(); /* do it after GtkNotebook initialized */
