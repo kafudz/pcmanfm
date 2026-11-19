@@ -108,6 +108,12 @@ scrollbar {
     -GtkScrollbar-has-forward-stepper: false;
 }
 
+/* Add vertical breathing room around directory address bars in dual-pane mode. */
+.pane-locbox {
+    padding-top: 8px;
+    padding-bottom: 8px;
+}
+
 /* Keep pane dividers discreet, with a small square close control. */
 paned > separator {
     min-width: 1px;
