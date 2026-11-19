@@ -153,7 +153,7 @@ static void init_pane_css(void)
         "    padding-right: 0;\n"
         "}\n"
         ".pane-locbox {\n"
-        "    padding: 6px 10px;\n"
+        "    padding: 8px 10px;\n"
         "}\n"
         ".pane-locbox entry,\n"
         ".pane-locbox button {\n"
@@ -2057,6 +2057,12 @@ void fm_tab_page_set_n_panes(FmTabPage *page, guint n_panes)
 #if GTK_CHECK_VERSION(3, 0, 0)
         gtk_style_context_add_class(gtk_widget_get_style_context(pane->box),
                                     "pane-box");
+        /* The sub page itself is the pane box now. Its own primary pane box
+           must not carry the class too, or the margin, padding and divider
+           would be applied twice and the pane would sit lower than the
+           first one. */
+        gtk_style_context_remove_class(
+            gtk_widget_get_style_context(sub_pane->box), "pane-box");
         gtk_style_context_add_class(
             gtk_widget_get_style_context(sub_pane->loc_box), "pane-locbox");
 #endif
