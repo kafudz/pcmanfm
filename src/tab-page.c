@@ -153,7 +153,7 @@ static void init_pane_css(void)
         "    padding-right: 0;\n"
         "}\n"
         ".pane-locbox {\n"
-        "    padding: 2px 4px 2px 0;\n"
+        "    padding: 2px 6px 2px 6px;\n"
         "}\n",
         -1, NULL);
 }
