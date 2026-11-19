@@ -152,13 +152,41 @@ static void init_pane_css(void)
         "    border-right: none;\n"
         "    padding-right: 0;\n"
         "}\n"
+        /* Minimal per-pane location bar: slim, no boxed entry, only a
+           hairline underneath to separate it from the files. */
         ".pane-locbox {\n"
-        "    padding: 8px 10px;\n"
+        "    padding: 2px 6px;\n"
+        "    border-bottom: 1px solid alpha(@theme_fg_color, 0.10);\n"
         "}\n"
-        ".pane-locbox entry,\n"
+        ".pane-locbox entry {\n"
+        "    min-height: 22px;\n"
+        "    margin: 0 2px;\n"
+        "    padding: 0 6px;\n"
+        "    border-color: transparent;\n"
+        "    background-image: none;\n"
+        "    background-color: alpha(@theme_fg_color, 0.05);\n"
+        "    box-shadow: none;\n"
+        "}\n"
+        ".pane-locbox entry:focus {\n"
+        "    background-color: alpha(@theme_fg_color, 0.08);\n"
+        "    border-color: alpha(@theme_selected_bg_color, 0.7);\n"
+        "    box-shadow: none;\n"
+        "}\n"
         ".pane-locbox button {\n"
-        "    min-height: 28px;\n"
-        "    margin: 1px 2px;\n"
+        "    min-width: 20px;\n"
+        "    min-height: 22px;\n"
+        "    margin: 0 1px;\n"
+        "    padding: 0 6px;\n"
+        "    border-color: transparent;\n"
+        "    background-image: none;\n"
+        "    background-color: transparent;\n"
+        "    box-shadow: none;\n"
+        "}\n"
+        ".pane-locbox button:hover {\n"
+        "    background-color: alpha(@theme_fg_color, 0.08);\n"
+        "}\n"
+        ".pane-locbox button:checked {\n"
+        "    background-color: alpha(@theme_fg_color, 0.12);\n"
         "}\n",
         -1, NULL);
 }
@@ -169,8 +197,10 @@ static void apply_pane_css(GtkWidget *widget)
 
     init_pane_css();
     ctx = gtk_widget_get_style_context(widget);
+    /* One step above the application stylesheet, so these pane rules always
+       win over the generic button and entry rules in pcmanfm.css. */
     gtk_style_context_add_provider(ctx, GTK_STYLE_PROVIDER(pane_css_provider),
-                                   GTK_STYLE_PROVIDER_PRIORITY_APPLICATION);
+                                   GTK_STYLE_PROVIDER_PRIORITY_APPLICATION + 1);
 }
 #endif
 
