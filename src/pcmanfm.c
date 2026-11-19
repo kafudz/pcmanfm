@@ -355,6 +355,7 @@ int main(int argc, char** argv)
     config = fm_app_config_new(); /* this automatically load libfm config file. */
 
     fm_gtk_init(config);
+    pcmanfm_modern_ui_init();
     setup_caption_padding();
 
 #if FM_CHECK_VERSION(1, 2, 0)
