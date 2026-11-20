@@ -140,11 +140,11 @@ static void init_pane_css(void)
         return;
     pane_css_provider = gtk_css_provider_new();
     gtk_css_provider_load_from_data(pane_css_provider,
-        "paned > separator {\n"
-        "    background-color: alpha(@theme_fg_color, 0.18);\n"
-        "    min-width: 2px;\n"
-        "    border: none;\n"
-        "}\n"
+        /* No rule for "paned > separator" on purpose: the theme draws a thin
+           divider line there, but its handle also has invisible padding that
+           overlaps the pane on the right. Painting a background colour on it
+           fills that padding and shows up as a grey block at the left end of
+           the location bar. */
         ".pane-box {\n"
         "    border-right: 1px solid shade(@theme_bg_color, 0.82);\n"
         "    padding-right: 4px;\n"
