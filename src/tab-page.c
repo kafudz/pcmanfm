@@ -2179,10 +2179,47 @@ gboolean fm_tab_page_focus_location(FmTabPage *page)
         return fm_tab_page_focus_location(active);
     if (!page->panes || page->panes->len == 0)
         return FALSE;
-    pane = g_ptr_array_index(page->panes, 0);
+    pane = g_ptr_array_index(page->panes,
+                             page->active_pane < page->panes->len ? page->active_pane : 0);
     gtk_widget_show(pane->entry);
     gtk_widget_hide(pane->bar);
     gtk_widget_grab_focus(pane->entry);
+    return TRUE;
+}
+
+gboolean fm_tab_page_type_location(FmTabPage *page, const char *text)
+{
+    FmTabPage *active = fm_tab_page_get_active_subpage(page);
+    FmTabPagePane *pane;
+
+    if (active != page)
+        return fm_tab_page_type_location(active, text);
+    if (!page->panes || page->panes->len == 0)
+        return FALSE;
+    pane = g_ptr_array_index(page->panes,
+                             page->active_pane < page->panes->len ? page->active_pane : 0);
+    gtk_widget_show(pane->entry);
+    gtk_widget_hide(pane->bar);
+    gtk_widget_grab_focus(pane->entry);
+    gtk_entry_set_text(GTK_ENTRY(pane->entry), text);
+    gtk_editable_set_position(GTK_EDITABLE(pane->entry), -1);
+    return TRUE;
+}
+
+gboolean fm_tab_page_activate_location(FmTabPage *page)
+{
+    FmTabPage *active = fm_tab_page_get_active_subpage(page);
+    FmTabPagePane *pane;
+
+    if (active != page)
+        return fm_tab_page_activate_location(active);
+    if (!page->panes || page->panes->len == 0)
+        return FALSE;
+    pane = g_ptr_array_index(page->panes,
+                             page->active_pane < page->panes->len ? page->active_pane : 0);
+    gtk_widget_show(pane->entry);
+    gtk_widget_hide(pane->bar);
+    g_signal_emit_by_name(pane->entry, "activate");
     return TRUE;
 }
 

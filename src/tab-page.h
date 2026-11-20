@@ -155,6 +155,8 @@ gint fm_tab_page_find_view(FmTabPage *page, FmFolderView *view);
 void fm_tab_page_set_path_mode(FmTabPage *page, gboolean buttons);
 FmFolderView *fm_tab_page_get_primary_view(FmTabPage *page);
 gboolean fm_tab_page_focus_location(FmTabPage *page);
+gboolean fm_tab_page_type_location(FmTabPage *page, const char *text);
+gboolean fm_tab_page_activate_location(FmTabPage *page);
 
 #if FM_CHECK_VERSION(1, 0, 2)
 void fm_tab_page_set_filter_pattern(FmTabPage *page, const char *pattern);

@@ -194,13 +194,7 @@ static void on_location_activate(GtkEntry* entry, FmMainWin* win)
     fm_path_ref(path);
     fm_main_win_chdir(win, path);
     fm_path_unref(path);
-    if (app_config->pathbar_mode_buttons)
-    {
-        /* recover from Ctrl+L mode change */
-        gtk_widget_hide(GTK_WIDGET(win->location));
-        gtk_widget_hide(gtk_ui_manager_get_widget(win->ui, "/toolbar/Go"));
-        gtk_widget_show(GTK_WIDGET(win->path_bar));
-    }
+    /* The top location bar is hidden; pane location bars handle navigation. */
 
     /* FIXME: due to bug #650114 in GTK+, GtkEntry still call a
      * idle function for GtkEntryCompletion even if the completion
@@ -226,19 +220,12 @@ static void on_path_bar_chdir(FmPathBar *bar, FmPath *path, FmMainWin *win)
     fm_main_win_chdir(win, path);
 }
 
-/* The toolbar directory box stays at the top of the window in every mode.
-   In multi-pane mode it follows the active pane, while each pane keeps its
-   own location bar as well. */
+/* There is no top location/path bar in this UI. Keep the legacy widgets
+   hidden; the Go button stays available for the per-pane location bar. */
 static void win_update_pathbar_visibility(FmMainWin *win)
 {
-    gboolean buttons = app_config->pathbar_mode_buttons;
-    GtkWidget *go = win->ui ? gtk_ui_manager_get_widget(win->ui, "/toolbar/Go")
-                            : NULL;
-
-    gtk_widget_set_visible(GTK_WIDGET(win->location), !buttons);
-    if (go)
-        gtk_widget_set_visible(go, !buttons);
-    gtk_widget_set_visible(GTK_WIDGET(win->path_bar), buttons);
+    gtk_widget_hide(GTK_WIDGET(win->location));
+    gtk_widget_hide(GTK_WIDGET(win->path_bar));
 }
 
 static void on_path_bar_mode(GtkRadioAction *act, GtkRadioAction *cur, FmMainWin *win)
@@ -787,7 +774,6 @@ static void fm_main_win_init(FmMainWin *win)
 {
     GtkBox *vbox;
     GtkWidget *menubar;
-    GtkBox *pathbox;
     GtkToolItem *toolitem;
     GtkUIManager* ui;
     GtkActionGroup* act_grp;
@@ -1010,7 +996,9 @@ static void fm_main_win_init(FmMainWin *win)
     /* load bookmarks menu */
     load_bookmarks(win, ui);
 
-    /* the location bar */
+    /* Keep the legacy path widgets alive for path tracking, but do not show
+       a second location bar at the top of the window. Navigation uses the
+       per-pane location bars and the Go to Location action. */
     win->location = fm_path_entry_new();
     g_signal_connect(win->location, "activate", G_CALLBACK(on_location_activate), win);
     if(geteuid() == 0) /* if we're using root, Give the user some warnings */
@@ -1027,14 +1015,6 @@ static void fm_main_win_init(FmMainWin *win)
 
     win->path_bar = fm_path_bar_new();
     g_signal_connect(win->path_bar, "chdir", G_CALLBACK(on_path_bar_chdir), win);
-    pathbox = (GtkBox*)gtk_hbox_new(FALSE, 0);
-    gtk_box_pack_start(pathbox, GTK_WIDGET(win->location), TRUE, TRUE, 0);
-    gtk_box_pack_start(pathbox, GTK_WIDGET(win->path_bar), TRUE, TRUE, 0);
-
-    toolitem = (GtkToolItem*)gtk_tool_item_new();
-    gtk_container_add(GTK_CONTAINER(toolitem), GTK_WIDGET(pathbox));
-    gtk_tool_item_set_expand(toolitem, TRUE);
-    gtk_toolbar_insert(win->toolbar, toolitem, gtk_toolbar_get_n_items(win->toolbar) - 1);
     g_signal_connect(app_config, "changed::toolsbar",
                      G_CALLBACK(on_toolsbar_changed), win);
 
@@ -1080,12 +1060,7 @@ static void fm_main_win_init(FmMainWin *win)
     win->ui = ui;
 
     /* accessibility: setup relation for Go button and location entry */
-    atk_obj = gtk_widget_get_accessible(GTK_WIDGET(win->location));
-    relation = atk_relation_new(&atk_obj, 1, ATK_RELATION_LABEL_FOR);
-    /* use atk_view for button temporarily */
-    atk_view = gtk_widget_get_accessible(gtk_ui_manager_get_widget(ui, "/toolbar/Go"));
-    atk_relation_set_add(atk_object_ref_relation_set(atk_view), relation);
-    g_object_unref(relation);
+    /* The Go toolbar button now acts on the active pane's location bar. */
     /* setup relations with view */
     atk_view = gtk_widget_get_accessible(GTK_WIDGET(win->notebook));
     relation = atk_relation_new(&atk_obj, 1, ATK_RELATION_CONTROLLED_BY);
@@ -1573,10 +1548,8 @@ static void on_new_tab(GtkAction* act, FmMainWin* win)
     FmPath* path = fm_tab_page_get_cwd(win->current_page);
     fm_main_win_add_tab(win, path);
     /* FR #1967725: focus the location bar of the newly created tab */
-    if (win->current_page && fm_tab_page_get_n_panes(win->current_page) > 1)
+    if (win->current_page)
         fm_tab_page_focus_location(win->current_page);
-    else
-        gtk_window_set_focus(GTK_WINDOW(win), GTK_WIDGET(win->location));
     if (win->idle_handler)
     {
         /* it will steal focus so cancel it */
@@ -1600,8 +1573,8 @@ static void on_close_tab(GtkAction* act, FmMainWin* win)
 
 static void on_go(GtkAction* act, FmMainWin* win)
 {
-    /* fm_main_win_chdir_by_name(win, gtk_entry_get_text(GTK_ENTRY(win->location))); */
-    g_signal_emit_by_name(win->location, "activate");
+    if (win->current_page)
+        fm_tab_page_activate_location(win->current_page);
 }
 
 static void _update_hist_buttons(FmMainWin* win)
@@ -1700,8 +1673,8 @@ void fm_main_win_chdir(FmMainWin* win, FmPath* path)
     update_file_menu(win, path);
     /* bug SF#842: if location is focused then set cursor at end of field */
     current_focus = gtk_window_get_focus(GTK_WINDOW(win));
-    if (current_focus == (GtkWidget*)win->location)
-        gtk_editable_set_position(GTK_EDITABLE(win->location), -1);
+    if (current_focus && win->current_page)
+        fm_tab_page_focus_location(win->current_page);
 }
 
 #if 0
@@ -2001,19 +1974,9 @@ static void on_toolbar_home(GtkToggleAction *act, FmMainWin *win)
 
 static void on_location(GtkAction* act, FmMainWin* win)
 {
-    /* in multi-pane mode use the location bar of the active pane */
-    if (win->current_page && fm_tab_page_get_n_panes(win->current_page) > 1)
-    {
+    /* There is no top location bar; focus the current pane's location bar. */
+    if (win->current_page)
         fm_tab_page_focus_location(win->current_page);
-        return;
-    }
-    gtk_widget_grab_focus(GTK_WIDGET(win->location));
-    if (app_config->pathbar_mode_buttons)
-    {
-        gtk_widget_show(GTK_WIDGET(win->location));
-        gtk_widget_show(gtk_ui_manager_get_widget(win->ui, "/toolbar/Go"));
-        gtk_widget_hide(GTK_WIDGET(win->path_bar));
-    }
 }
 
 static void bounce_action(GtkAction* act, FmMainWin* win)
@@ -2618,26 +2581,9 @@ static gboolean on_key_press_event(GtkWidget* w, GdkEventKey* evt)
     }
     else if(evt->keyval == '/' || evt->keyval == '~')
     {
-        if (!gtk_widget_is_focus(GTK_WIDGET(win->location)))
-        {
-            gtk_widget_grab_focus(GTK_WIDGET(win->location));
-            char path[] = {evt->keyval, 0};
-            gtk_entry_set_text(GTK_ENTRY(win->location), path);
-            gtk_editable_set_position(GTK_EDITABLE(win->location), -1);
+        char path[] = {evt->keyval, 0};
+        if (win->current_page && fm_tab_page_type_location(win->current_page, path))
             return TRUE;
-        }
-    }
-    else if(evt->keyval == GDK_KEY_Escape)
-    {
-        if (gtk_widget_is_focus(GTK_WIDGET(win->location)))
-        {
-            gtk_widget_grab_focus(GTK_WIDGET(win->folder_view));
-            fm_path_entry_set_path(win->location,
-                                   fm_tab_page_get_cwd(win->current_page));
-            fm_path_bar_set_path(win->path_bar,
-                                 fm_tab_page_get_cwd(win->current_page));
-            return TRUE;
-        }
     }
     return GTK_WIDGET_CLASS(fm_main_win_parent_class)->key_press_event(w, evt);
 }
