@@ -153,6 +153,9 @@ static void init_pane_css(void)
         "    border-right: none;\n"
         "    padding-right: 0;\n"
         "}\n"
+        ".side-pane {\n"
+        "    border-right: 2px solid alpha(@theme_fg_color, 0.18);\n"
+        "}\n"
         /* Minimal per-pane location bar: slim, no boxed entry, only a
            hairline underneath to separate it from the files. */
         ".pane-locbox {\n"
@@ -1387,6 +1390,13 @@ static void fm_tab_page_init(FmTabPage *page)
     g_signal_connect(page->side_pane, "destroy",
                      G_CALLBACK(on_side_pane_destroy), page);
     fm_side_pane_set_mode(page->side_pane, (mode & FM_SP_MODE_MASK));
+#if GTK_CHECK_VERSION(3, 0, 0)
+    /* Draw a definite vertical line on the right edge of the directory
+       side pane so it is separated from the file view in every theme. */
+    gtk_style_context_add_class(gtk_widget_get_style_context(GTK_WIDGET(page->side_pane)),
+                                "side-pane");
+    apply_pane_css(GTK_WIDGET(page->side_pane));
+#endif
 #if FM_CHECK_VERSION(1, 2, 0)
     fm_side_pane_set_popup_updater(page->side_pane, _update_sidepane_popup, page);
     if (app_config->home_path && app_config->home_path[0])
