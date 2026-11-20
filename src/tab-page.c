@@ -457,7 +457,9 @@ static void _update_primary_bar_visibility(FmTabPage *page)
     if (!page->panes || page->panes->len == 0)
         return;
     pane = g_ptr_array_index(page->panes, 0);
-    gtk_widget_set_visible(pane->loc_box, page->panes->len > 1);
+    /* The window has no location bar of its own, so the primary pane always
+       shows its bar at the top, in single-pane mode as well. */
+    gtk_widget_set_visible(pane->loc_box, TRUE);
 }
 
 static void on_pane_entry_activate(GtkEntry *entry, FmTabPagePane *pane)
@@ -575,11 +577,12 @@ static FmTabPagePane *_pane_new_primary(FmTabPage *page)
                      G_CALLBACK(on_pane_close_clicked), pane);
     g_ptr_array_add(page->panes, pane);
     gtk_box_pack_start(page->views, pane->box, TRUE, TRUE, 0);
-    /* the bar of the primary pane is shown only in multi-pane mode */
     gtk_widget_show_all(pane->box);
     /* show_all() reveals both widgets, apply the configured mode again */
     _set_pane_path_mode(pane, app_config->pathbar_mode_buttons);
     _update_primary_bar_visibility(page);
+    /* show_all() also revealed the close button; a lone pane has none */
+    _update_pane_close_buttons(page);
     return pane;
 }
 
@@ -1923,8 +1926,10 @@ static void _update_pane_close_buttons(FmTabPage *page)
         /* an extra pane is a child page, its widgets live on that page */
         if (pane->sub && pane->sub->panes && pane->sub->panes->len > 0)
             visible_pane = g_ptr_array_index(pane->sub->panes, 0);
+        /* the last remaining pane cannot be closed, so it gets no button */
         if (visible_pane->close_btn)
-            gtk_widget_set_visible(visible_pane->close_btn, TRUE);
+            gtk_widget_set_visible(visible_pane->close_btn,
+                                   page->panes->len > 1);
     }
 }
 
