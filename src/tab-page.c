@@ -158,6 +158,10 @@ static void init_pane_css(void)
         "    padding: 2px 6px;\n"
         "    border-bottom: 1px solid alpha(@theme_fg_color, 0.10);\n"
         "}\n"
+        /* Attach the left pane's location bar to the pane edge. */
+        ".pane-box:first-child .pane-locbox {\n"
+        "    padding-left: 0;\n"
+        "}\n"
         ".pane-locbox entry {\n"
         "    min-height: 22px;\n"
         "    margin: 0 2px;\n"

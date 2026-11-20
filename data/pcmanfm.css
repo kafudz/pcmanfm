@@ -107,6 +107,20 @@ toolbar entry {
     padding: 0 8px;
 }
 
+/* Keep the toolbar history drop-down compact alongside the other buttons. */
+toolbar toolbutton button.popup.toggle {
+    min-width: 20px;
+    min-height: 26px;
+    margin: 0;
+    padding: 0 2px;
+}
+
+toolbar toolbutton button.popup.toggle image {
+    -GtkWidget-icon-size: 8;
+    min-width: 8px;
+    min-height: 8px;
+}
+
 /* ---- Buttons ----------------------------------------------------------- */
 
 button {
