@@ -40,8 +40,8 @@ void pcmanfm_modern_ui_init(void)
      * through these style properties; padding on the cells has no effect. */
     add_screen_css(screen,
                    ".side-pane treeview.view {\n"
-                   "    -GtkTreeView-vertical-separator: 4;\n"
-                   "    -GtkTreeView-horizontal-separator: 6;\n"
+                   "    -GtkTreeView-vertical-separator: 8;\n"
+                   "    -GtkTreeView-horizontal-separator: 10;\n"
                    "}\n");
 #endif
 }
