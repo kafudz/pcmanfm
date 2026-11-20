@@ -127,9 +127,10 @@ struct _FmTabPagePane
 static void on_pane_close_clicked(GtkButton *btn, FmTabPagePane *pane);
 static void _update_pane_close_buttons(FmTabPage *page);
 
-/* Keep the paned handle and its separator minimalist (1px), and give the
-   per-pane location box some breathing room when more than one pane is shown.
-   This is done with a per-widget CSS provider so it works with any theme. */
+/* Show a clear vertical divider between the directory side pane and the
+   file view, and give the per-pane location box breathing room when more
+   than one pane is shown. This uses a per-widget CSS provider so it works
+   with any theme. */
 #if GTK_CHECK_VERSION(3, 0, 0)
 static GtkCssProvider *pane_css_provider = NULL;
 
@@ -140,8 +141,8 @@ static void init_pane_css(void)
     pane_css_provider = gtk_css_provider_new();
     gtk_css_provider_load_from_data(pane_css_provider,
         "paned > separator {\n"
-        "    background-color: shade(@theme_bg_color, 0.82);\n"
-        "    min-width: 1px;\n"
+        "    background-color: alpha(@theme_fg_color, 0.18);\n"
+        "    min-width: 2px;\n"
         "    border: none;\n"
         "}\n"
         ".pane-box {\n"
