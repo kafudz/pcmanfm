@@ -1059,13 +1059,8 @@ static void fm_main_win_init(FmMainWin *win)
     g_object_unref(act_grp);
     win->ui = ui;
 
-    /* accessibility: setup relation for Go button and location entry */
-    /* The Go toolbar button now acts on the active pane's location bar. */
-    /* setup relations with view */
+    /* accessibility: the statusbar describes the view */
     atk_view = gtk_widget_get_accessible(GTK_WIDGET(win->notebook));
-    relation = atk_relation_new(&atk_obj, 1, ATK_RELATION_CONTROLLED_BY);
-    atk_relation_set_add(atk_object_ref_relation_set(atk_view), relation);
-    g_object_unref(relation);
     atk_obj = gtk_widget_get_accessible(GTK_WIDGET(win->statusbar));
     relation = atk_relation_new(&atk_obj, 1, ATK_RELATION_DESCRIBED_BY);
     atk_relation_set_add(atk_object_ref_relation_set(atk_view), relation);

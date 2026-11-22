@@ -558,7 +558,8 @@ gboolean pcmanfm_run(gint screen_num)
                 {
                     char* cwd_str = ipc_cwd ? ipc_cwd : g_get_current_dir();
                     cwd = fm_path_new_for_str(cwd_str);
-                    g_free(cwd_str);
+                    if (cwd_str != ipc_cwd) /* ipc_cwd is owned by the IPC code */
+                        g_free(cwd_str);
                 }
                 path = fm_path_new_relative(cwd, *filename);
             }
@@ -593,7 +594,6 @@ gboolean pcmanfm_run(gint screen_num)
             win = fm_main_win_add_win(NULL, path);
             if(new_win && window_role)
                 gtk_window_set_role(GTK_WINDOW(win), window_role);
-            ipc_cwd = NULL;
         }
     }
 
@@ -603,6 +603,8 @@ gboolean pcmanfm_run(gint screen_num)
         fm_launch_search_simple(GTK_WINDOW(win), NULL, NULL,
                                 pcmanfm_open_folder, NULL);
 #endif
+    g_free(ipc_cwd);
+    ipc_cwd = NULL;
     reset_options();
     return ret;
 }
@@ -827,9 +829,15 @@ void pcmanfm_open_folders_as_root(GtkWindow* parent, GList* paths)
              || strstr(app_config->su_cmd, "%u")
              || strstr(app_config->su_cmd, "%F")
              || strstr(app_config->su_cmd, "%f"))
+    {
+        g_free(cmd);
         cmd = g_strdup(app_config->su_cmd);
+    }
     else
+    {
+        g_free(cmd);
         cmd = g_strconcat(app_config->su_cmd, " pcmanfm %U", NULL);
+    }
 
     for (l = paths; l; l = l->next)
     {
