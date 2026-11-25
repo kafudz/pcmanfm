@@ -639,10 +639,18 @@ void fm_tab_page_dock_location(FmTabPage *page, GtkBox *slot)
         /* the pane styles are attached to widgets, so the slot needs them too */
         apply_pane_css(GTK_WIDGET(slot));
 #endif
+#if GTK_CHECK_VERSION(3, 0, 0)
+        gtk_style_context_add_class(gtk_widget_get_style_context(loc),
+                                    "locbar-docked");
+#endif
         gtk_box_pack_start(slot, loc, FALSE, TRUE, 0);
     }
     else
     {
+#if GTK_CHECK_VERSION(3, 0, 0)
+        gtk_style_context_remove_class(gtk_widget_get_style_context(loc),
+                                       "locbar-docked");
+#endif
         gtk_box_pack_start(GTK_BOX(pane->box), loc, FALSE, TRUE, 0);
         gtk_box_reorder_child(GTK_BOX(pane->box), loc, 0);
     }
