@@ -618,6 +618,38 @@ static void on_home_path_changed(FmAppConfig *cfg, FmSidePane *sp)
 }
 #endif
 
+void fm_tab_page_dock_location(FmTabPage *page, GtkBox *slot)
+{
+    FmTabPagePane *pane;
+    GtkWidget *loc, *parent;
+
+    if (page->dock_slot == slot || !page->panes || page->panes->len == 0)
+        return;
+    pane = g_ptr_array_index(page->panes, 0);
+    loc = pane->loc_box;
+    if (!loc || (!slot && !pane->box))
+        return;
+    g_object_ref(loc);
+    parent = gtk_widget_get_parent(loc);
+    if (parent)
+        gtk_container_remove(GTK_CONTAINER(parent), loc);
+    if (slot)
+    {
+#if GTK_CHECK_VERSION(3, 0, 0)
+        /* the pane styles are attached to widgets, so the slot needs them too */
+        apply_pane_css(GTK_WIDGET(slot));
+#endif
+        gtk_box_pack_start(slot, loc, FALSE, TRUE, 0);
+    }
+    else
+    {
+        gtk_box_pack_start(GTK_BOX(pane->box), loc, FALSE, TRUE, 0);
+        gtk_box_reorder_child(GTK_BOX(pane->box), loc, 0);
+    }
+    g_object_unref(loc);
+    page->dock_slot = slot;
+}
+
 #if GTK_CHECK_VERSION(3, 0, 0)
 void fm_tab_page_destroy(GtkWidget *object)
 #else
@@ -625,6 +657,10 @@ void fm_tab_page_destroy(GtkObject *object)
 #endif
 {
     FmTabPage* page = FM_TAB_PAGE(object);
+
+    /* give a docked location bar back so it is destroyed with its pane */
+    if (page->dock_slot)
+        fm_tab_page_dock_location(page, NULL);
 
     g_debug("fm_tab_page_destroy, folder: %s",
             page->folder ? fm_path_get_basename(fm_folder_get_path(page->folder)) : "(none)");

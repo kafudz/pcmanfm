@@ -53,6 +53,7 @@ struct _FmMainWin
     GtkToolbar* toolbar;
     FmPathEntry* location;
     FmPathBar* path_bar;
+    GtkBox* loc_slot; /* full-width location bar above the notebook */
     GtkNotebook* notebook;
     FmTabPage* current_page;
     FmSidePane* side_pane;

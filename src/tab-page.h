@@ -58,6 +58,7 @@ struct _FmTabPage
     FmSidePane* side_pane;
     FmFolderView* folder_view;
     GtkBox *views;
+    GtkBox *dock_slot; /* window box holding the primary location bar, or NULL */
     GPtrArray *panes; /* additional panes, each one is a child FmTabPage */
     guint active_pane;
     gboolean is_subpage : 1; /* this page is embedded into another one */
@@ -141,6 +142,11 @@ const char* fm_tab_page_get_status_text(FmTabPage* page, FmStatusTextType type);
 
 /* multi-pane support */
 guint fm_tab_page_get_n_panes(FmTabPage *page);
+
+/* Move the primary pane's location bar into @slot (a box above the whole
+   page, so it spans the side pane too), or back into the pane when @slot
+   is NULL. */
+void fm_tab_page_dock_location(FmTabPage *page, GtkBox *slot);
 guint fm_tab_page_get_active_pane(FmTabPage *page);
 void fm_tab_page_set_active_pane(FmTabPage *page, guint index);
 void fm_tab_page_set_n_panes(FmTabPage *page, guint n_panes);
