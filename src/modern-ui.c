@@ -38,7 +38,7 @@ void pcmanfm_modern_ui_init(void)
     /* The full-width bar above the side pane: the same space on both sides,
      * whatever the per-pane rules above say about the left edge. */
     add_screen_css(screen,
-                   ".pane-locbox.locbar-docked { padding: 1px; }\n");
+                   ".pane-locbox.locbar-docked { padding: 0; }\n");
 
     /* Side pane rows: compact, but with room between the rows and between
      * each icon and its label. Row spacing in a tree view is only reachable
