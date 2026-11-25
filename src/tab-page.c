@@ -1415,8 +1415,25 @@ static void side_pane_space_icons(GtkWidget *widget, gpointer unused)
         gtk_container_forall(GTK_CONTAINER(widget), side_pane_space_icons, NULL);
 }
 
+/* The Places / Directory Tree selector bar on top of the side pane is hidden:
+ * the mode is chosen from View > Side Pane, which leaves the room to the
+ * list. It is the pane's first child and the only box there; the list lives
+ * in a scrolled window. */
+static void side_pane_hide_header(GtkWidget *sp)
+{
+    GList *children = gtk_container_get_children(GTK_CONTAINER(sp));
+
+    if (children && GTK_IS_BOX(children->data))
+    {
+        gtk_widget_set_no_show_all(GTK_WIDGET(children->data), TRUE);
+        gtk_widget_hide(GTK_WIDGET(children->data));
+    }
+    g_list_free(children);
+}
+
 static void on_side_pane_spacing_event(GtkWidget *sp, gpointer unused)
 {
+    side_pane_hide_header(sp);
     side_pane_space_icons(sp, NULL);
 }
 
@@ -1437,6 +1454,7 @@ static void fm_tab_page_init(FmTabPage *page)
     g_signal_connect(page->side_pane, "destroy",
                      G_CALLBACK(on_side_pane_destroy), page);
     fm_side_pane_set_mode(page->side_pane, (mode & FM_SP_MODE_MASK));
+    side_pane_hide_header(GTK_WIDGET(page->side_pane));
     side_pane_space_icons(GTK_WIDGET(page->side_pane), NULL);
     /* views can be (re)built later, so reapply on mode change and when shown */
     g_signal_connect_after(page->side_pane, "mode-changed",
