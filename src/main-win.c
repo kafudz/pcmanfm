@@ -220,10 +220,31 @@ static void on_path_bar_chdir(FmPathBar *bar, FmPath *path, FmMainWin *win)
     fm_main_win_chdir(win, path);
 }
 
-/* There is no top location/path bar in this UI. Keep the legacy widgets
-   hidden; the Go button stays available for the per-pane location bar. */
+/* In single-pane mode the current tab's location bar is moved into the slot
+   above the notebook, so it spans the side pane and the file view and the
+   side pane starts below it. With more panes every pane keeps its own bar. */
+static void win_update_location_dock(FmMainWin *win)
+{
+    gint i, n;
+
+    if (!win->notebook || !win->loc_slot)
+        return;
+    n = gtk_notebook_get_n_pages(win->notebook);
+    for (i = 0; i < n; i++)
+    {
+        FmTabPage *page = FM_TAB_PAGE(gtk_notebook_get_nth_page(win->notebook, i));
+        gboolean dock = (page == win->current_page
+                         && fm_tab_page_get_n_panes(page) == 1);
+
+        fm_tab_page_dock_location(page, dock ? win->loc_slot : NULL);
+    }
+}
+
+/* The legacy window-level path widgets stay hidden (they only track the
+   path); the location bars are the ones docked by win_update_location_dock(). */
 static void win_update_pathbar_visibility(FmMainWin *win)
 {
+    win_update_location_dock(win);
     gtk_widget_hide(GTK_WIDGET(win->location));
     gtk_widget_hide(GTK_WIDGET(win->path_bar));
 }
@@ -1015,6 +1036,20 @@ static void fm_main_win_init(FmMainWin *win)
 
     win->path_bar = fm_path_bar_new();
     g_signal_connect(win->path_bar, "chdir", G_CALLBACK(on_path_bar_chdir), win);
+    /* Keep the legacy widgets in a hidden holder: an unparented widget is
+       never destroyed with the window. */
+    {
+        GtkWidget *holder = gtk_hbox_new(FALSE, 0);
+
+        gtk_box_pack_start(GTK_BOX(holder), GTK_WIDGET(win->location), TRUE, TRUE, 0);
+        gtk_box_pack_start(GTK_BOX(holder), GTK_WIDGET(win->path_bar), TRUE, TRUE, 0);
+        gtk_widget_set_no_show_all(holder, TRUE);
+        gtk_box_pack_start(vbox, holder, FALSE, FALSE, 0);
+    }
+    /* slot for the full-width location bar (filled by win_update_location_dock) */
+    win->loc_slot = GTK_BOX(gtk_vbox_new(FALSE, 0));
+    gtk_box_pack_start(vbox, GTK_WIDGET(win->loc_slot), FALSE, TRUE, 0);
+    gtk_widget_show(GTK_WIDGET(win->loc_slot));
     g_signal_connect(app_config, "changed::toolsbar",
                      G_CALLBACK(on_toolsbar_changed), win);
 
@@ -1118,6 +1153,17 @@ static void fm_main_win_destroy(GtkObject *object)
         }
 
         all_wins = g_slist_remove(all_wins, win);
+
+        /* give the docked location bar back to its page before the slot is
+           destroyed together with the window */
+        {
+            gint i, n = gtk_notebook_get_n_pages(win->notebook);
+
+            for (i = 0; i < n; i++)
+                fm_tab_page_dock_location(
+                    FM_TAB_PAGE(gtk_notebook_get_nth_page(win->notebook, i)), NULL);
+        }
+        win->loc_slot = NULL;
 
         while(gtk_notebook_get_n_pages(win->notebook) > 0)
             gtk_notebook_remove_page(win->notebook, 0);
@@ -2368,6 +2414,7 @@ static void on_notebook_switch_page(GtkNotebook* nb, gpointer* new_page, guint n
         gtk_widget_show_all(GTK_WIDGET(win->side_pane));
     }
 
+    win_update_location_dock(win);
     win_update_active_view(win);
 
     if(win->idle_handler == 0)
