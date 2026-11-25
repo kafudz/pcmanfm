@@ -794,7 +794,7 @@ static void _do_settings_hack(void)
 static void fm_main_win_init(FmMainWin *win)
 {
     GtkBox *vbox;
-    GtkWidget *menubar;
+    GtkWidget *menubar, *toolbar_row;
     GtkToolItem *toolitem;
     GtkUIManager* ui;
     GtkActionGroup* act_grp;
@@ -1012,7 +1012,11 @@ static void fm_main_win_init(FmMainWin *win)
         atk_object_set_name(atk_obj, _("History"));
 
     gtk_box_pack_start( vbox, menubar, FALSE, TRUE, 0 );
-    gtk_box_pack_start( vbox, GTK_WIDGET(win->toolbar), FALSE, TRUE, 0 );
+    /* the toolbar and the location bar share one row: toolbar on the left,
+       the location bar takes the rest */
+    toolbar_row = gtk_hbox_new(FALSE, 0);
+    gtk_box_pack_start(GTK_BOX(toolbar_row), GTK_WIDGET(win->toolbar), FALSE, TRUE, 0);
+    gtk_box_pack_start(vbox, toolbar_row, FALSE, TRUE, 0);
 
     /* load bookmarks menu */
     load_bookmarks(win, ui);
@@ -1048,7 +1052,10 @@ static void fm_main_win_init(FmMainWin *win)
     }
     /* slot for the full-width location bar (filled by win_update_location_dock) */
     win->loc_slot = GTK_BOX(gtk_vbox_new(FALSE, 0));
-    gtk_box_pack_start(vbox, GTK_WIDGET(win->loc_slot), FALSE, TRUE, 0);
+    gtk_box_pack_start(GTK_BOX(toolbar_row), GTK_WIDGET(win->loc_slot), TRUE, TRUE, 0);
+#if GTK_CHECK_VERSION(3, 0, 0)
+    gtk_widget_set_valign(GTK_WIDGET(win->loc_slot), GTK_ALIGN_CENTER);
+#endif
     gtk_widget_show(GTK_WIDGET(win->loc_slot));
     g_signal_connect(app_config, "changed::toolsbar",
                      G_CALLBACK(on_toolsbar_changed), win);
