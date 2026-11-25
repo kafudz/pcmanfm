@@ -40,6 +40,21 @@ void pcmanfm_modern_ui_init(void)
     add_screen_css(screen,
                    ".pane-locbox.locbar-docked { padding: 0; }\n");
 
+    /* No coloured focus accent on the location bars. */
+    add_screen_css(screen,
+                   ".pane-locbox entry, .pane-locbox entry:focus {\n"
+                   "    border-color: transparent;\n"
+                   "    box-shadow: none;\n"
+                   "    outline-style: none;\n"
+                   "    outline-width: 0;\n"
+                   "}\n"
+                   ".pane-locbox button:focus, .pane-locbox button:checked {\n"
+                   "    border-color: transparent;\n"
+                   "    box-shadow: none;\n"
+                   "    outline-style: none;\n"
+                   "    outline-width: 0;\n"
+                   "}\n");
+
     /* Side pane rows: compact, but with room between the rows and between
      * each icon and its label. Row spacing in a tree view is only reachable
      * through these style properties; padding on the cells has no effect. */
