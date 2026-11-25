@@ -35,6 +35,30 @@ void pcmanfm_modern_ui_init(void)
                    ".side-pane { border-right: none; box-shadow: none; }\n"
                    "paned > separator { box-shadow: none; }\n");
 
+    /* Side pane header (the Places / Directory Tree selector): same slim
+     * height, spacing and hairline as the pane location bars next to it. */
+    add_screen_css(screen,
+                   ".side-pane > *:first-child {\n"
+                   "    padding: 2px 6px;\n"
+                   "    border-bottom: 1px solid alpha(@theme_fg_color, 0.10);\n"
+                   "}\n"
+                   ".side-pane button {\n"
+                   "    min-width: 20px;\n"
+                   "    min-height: 22px;\n"
+                   "    margin: 0;\n"
+                   "    padding: 0 6px;\n"
+                   "    border-color: transparent;\n"
+                   "    background-image: none;\n"
+                   "    background-color: transparent;\n"
+                   "    box-shadow: none;\n"
+                   "}\n"
+                   ".side-pane button:hover {\n"
+                   "    background-color: alpha(@theme_fg_color, 0.08);\n"
+                   "}\n"
+                   ".side-pane button:checked {\n"
+                   "    background-color: alpha(@theme_fg_color, 0.12);\n"
+                   "}\n");
+
     /* Side pane rows: compact, but with room between the rows and between
      * each icon and its label. Row spacing in a tree view is only reachable
      * through these style properties; padding on the cells has no effect. */
