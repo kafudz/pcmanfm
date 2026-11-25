@@ -1378,8 +1378,10 @@ static void on_side_pane_destroy(GtkWidget *widget, FmTabPage *page)
 
 /* Give every icon in the side pane some room before its label. The views are
  * created by libfm (and recreated when the mode changes), so find the tree
- * views and the pixbuf renderers instead of assuming a layout. */
-#define SIDE_PANE_ICON_GAP 8
+ * views and the pixbuf renderers instead of assuming a layout. Both the gap
+ * inside a column and the renderer padding are set, so it works whether libfm
+ * packs icon and text into one column or into separate ones. */
+#define SIDE_PANE_ICON_GAP 6
 
 static void side_pane_space_columns(GtkTreeView *tv)
 {
@@ -1390,12 +1392,16 @@ static void side_pane_space_columns(GtkTreeView *tv)
         GtkTreeViewColumn *col = gtk_tree_view_get_column(tv, i);
         GList *cells = gtk_cell_layout_get_cells(GTK_CELL_LAYOUT(col)), *l;
 
+        gtk_tree_view_column_set_spacing(col, SIDE_PANE_ICON_GAP);
         for (l = cells; l; l = l->next)
             if (GTK_IS_CELL_RENDERER_PIXBUF(l->data))
             {
-                gtk_cell_renderer_set_padding(GTK_CELL_RENDERER(l->data),
-                                              SIDE_PANE_ICON_GAP / 2, 0);
-                break;
+                GtkCellRenderer *cell = GTK_CELL_RENDERER(l->data);
+                gint xpad, ypad;
+
+                /* keep the vertical padding, only widen the horizontal one */
+                gtk_cell_renderer_get_padding(cell, &xpad, &ypad);
+                gtk_cell_renderer_set_padding(cell, SIDE_PANE_ICON_GAP / 2, ypad);
             }
         g_list_free(cells);
     }
@@ -1409,9 +1415,9 @@ static void side_pane_space_icons(GtkWidget *widget, gpointer unused)
         gtk_container_forall(GTK_CONTAINER(widget), side_pane_space_icons, NULL);
 }
 
-static void on_side_pane_mode_changed_spacing(FmSidePane *sp, gpointer unused)
+static void on_side_pane_spacing_event(GtkWidget *sp, gpointer unused)
 {
-    side_pane_space_icons(GTK_WIDGET(sp), NULL);
+    side_pane_space_icons(sp, NULL);
 }
 
 static void fm_tab_page_init(FmTabPage *page)
@@ -1432,8 +1438,11 @@ static void fm_tab_page_init(FmTabPage *page)
                      G_CALLBACK(on_side_pane_destroy), page);
     fm_side_pane_set_mode(page->side_pane, (mode & FM_SP_MODE_MASK));
     side_pane_space_icons(GTK_WIDGET(page->side_pane), NULL);
+    /* views can be (re)built later, so reapply on mode change and when shown */
     g_signal_connect_after(page->side_pane, "mode-changed",
-                           G_CALLBACK(on_side_pane_mode_changed_spacing), NULL);
+                           G_CALLBACK(on_side_pane_spacing_event), NULL);
+    g_signal_connect_after(page->side_pane, "map",
+                           G_CALLBACK(on_side_pane_spacing_event), NULL);
 #if GTK_CHECK_VERSION(3, 0, 0)
     /* Draw a definite vertical line on the right edge of the directory
        side pane so it is separated from the file view in every theme. */
