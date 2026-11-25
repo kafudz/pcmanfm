@@ -1417,18 +1417,16 @@ static void side_pane_space_icons(GtkWidget *widget, gpointer unused)
 
 /* The Places / Directory Tree selector bar on top of the side pane is hidden:
  * the mode is chosen from View > Side Pane, which leaves the room to the
- * list. It is the pane's first child and the only box there; the list lives
- * in a scrolled window. */
+ * list. */
 static void side_pane_hide_header(GtkWidget *sp)
 {
-    GList *children = gtk_container_get_children(GTK_CONTAINER(sp));
+    GtkWidget *bar = fm_side_pane_get_title_bar(FM_SIDE_PANE(sp));
 
-    if (children && GTK_IS_BOX(children->data))
+    if (bar)
     {
-        gtk_widget_set_no_show_all(GTK_WIDGET(children->data), TRUE);
-        gtk_widget_hide(GTK_WIDGET(children->data));
+        gtk_widget_set_no_show_all(bar, TRUE);
+        gtk_widget_hide(bar);
     }
-    g_list_free(children);
 }
 
 static void on_side_pane_spacing_event(GtkWidget *sp, gpointer unused)
