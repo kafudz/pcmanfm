@@ -40,15 +40,23 @@ void pcmanfm_modern_ui_init(void)
     add_screen_css(screen,
                    ".pane-locbox.locbar-docked { padding: 0; }\n");
 
-    /* No coloured focus accent on the location bars. */
+    /* No coloured focus accent on the location bars. Themes such as Fluent draw
+     * the accent as a border image or a background gradient, not only as a
+     * border colour, so those are cleared as well. */
     add_screen_css(screen,
-                   ".pane-locbox entry, .pane-locbox entry:focus {\n"
+                   ".pane-locbox entry, .pane-locbox entry:hover,\n"
+                   ".pane-locbox entry:focus, .pane-locbox entry:active {\n"
+                   "    border-image: none;\n"
+                   "    background-image: none;\n"
                    "    border-color: transparent;\n"
                    "    box-shadow: none;\n"
                    "    outline-style: none;\n"
                    "    outline-width: 0;\n"
                    "}\n"
-                   ".pane-locbox button:focus, .pane-locbox button:checked {\n"
+                   ".pane-locbox button:focus, .pane-locbox button:checked,\n"
+                   ".pane-locbox button:active {\n"
+                   "    border-image: none;\n"
+                   "    background-image: none;\n"
                    "    border-color: transparent;\n"
                    "    box-shadow: none;\n"
                    "    outline-style: none;\n"
