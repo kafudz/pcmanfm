@@ -2382,8 +2382,8 @@ static void on_folder_view_filter_changed(FmFolderView* fv, FmMainWin* win)
         }
         else
         {
+            /* kept for this session only, it is never written to the config */
             app_config->show_hidden = active;
-            pcmanfm_save_config(FALSE);
         }
     }
 }

@@ -406,8 +406,8 @@ static gboolean _parse_config_for_path(FmFolderConfig *fc,
         FM_STANDARD_VIEW_MODE_IS_VALID(tmp_int))
         *view_mode = tmp_int;
 #endif
-    if (show_hidden)
-        fm_folder_config_get_boolean(fc, "ShowHidden", show_hidden);
+    /* ShowHidden is deliberately not read: hidden files are never shown
+       automatically, an old saved value must not bring them back */
 #if FM_CHECK_VERSION(1, 0, 2)
     if (columns)
         *columns = fm_folder_config_get_string_list(fc, "Columns", NULL);
@@ -760,7 +760,7 @@ void fm_app_config_load_from_key_file(FmAppConfig* cfg, GKeyFile* kf)
 #endif
        FM_STANDARD_VIEW_MODE_IS_VALID(tmp_int))
         cfg->view_mode = tmp_int;
-    fm_key_file_get_bool(kf, "ui", "show_hidden", &cfg->show_hidden);
+    /* show_hidden is not restored: hidden files are off at every start */
     _parse_sort(kf, "ui", &cfg->sort_type, &cfg->sort_by);
 #if FM_CHECK_VERSION(1, 0, 2)
     tmpv = g_key_file_get_string_list(kf, "ui", "columns", NULL, NULL);
@@ -1052,7 +1052,7 @@ void fm_app_config_save_config_for_path(FmPath *path, GtkSortType mode, gint by,
     fm_folder_config_set_integer(fc, "sort_type", mode);
     fm_folder_config_set_integer(fc, "sort_by", by);
 #endif
-    fm_folder_config_set_boolean(fc, "ShowHidden", show_hidden);
+    /* ShowHidden is not saved, hidden files are off every time a folder opens */
     fm_folder_config_close(fc, NULL);
 #if FM_CHECK_VERSION(1, 2, 0)
     /* raise 'changed' flag and schedule config save */
@@ -1188,7 +1188,7 @@ void fm_app_config_save_profile(FmAppConfig* cfg, const char* name)
 #else
         g_string_append_printf(buf, "view_mode=%d\n", cfg->view_mode);
 #endif
-        g_string_append_printf(buf, "show_hidden=%d\n", cfg->show_hidden);
+        g_string_append(buf, "show_hidden=0\n");
         _save_sort(buf, cfg->sort_type, cfg->sort_by);
 #if FM_CHECK_VERSION(1, 0, 2)
         if (cfg->columns && cfg->columns[0])
