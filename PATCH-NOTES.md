@@ -41,3 +41,14 @@ This patch keeps PCManFM's existing C/GTK/libfm architecture. It does not attemp
 - A compile and GUI/runtime test could not be performed in this environment: `glib-2.0`, `gio-2.0`, GTK 2/3, and libfm development packages are absent; `intltoolize` is also unavailable, so the project's Autotools bootstrap cannot complete here.
 
 Before merging upstream, build against the target distribution's GTK/libfm versions and test single-instance launches with long paths, split-pane tab close/reopen, status-bar selection updates, and both GTK 2 and GTK 3 configurations.
+
+### Toolbar appearance adjustment
+
+- Removed the toolbar row's solid theme background and made both the shared toolbar/location row and GTK toolbar background transparent.
+- Kept the subtle bottom divider and theme-adaptive hover/active feedback on toolbar buttons.
+
+### Toolbar appearance adjustment
+
+- Removed the solid background from the shared toolbar/location row and GTK toolbar; both now use transparent backgrounds.
+- Toolbar buttons are transparent at rest, while subtle theme-adaptive hover and active feedback is retained.
+- Kept the understated bottom divider so the toolbar remains visually separated without a filled color surface.
