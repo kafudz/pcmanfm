@@ -57,3 +57,10 @@ Before merging upstream, build against the target distribution's GTK/libfm versi
 
 - Replaced the light theme-foreground-based separator strokes with a consistent dark charcoal `#30343b` on the toolbar row, status bar, side-pane divider, and per-pane location bars.
 - Kept focus and selection indicators accent-colored; only neutral separator/border lines were changed.
+### Drag-and-drop target feedback
+
+- Added a solid, accent-colored outline around the exact folder item that can accept a drop in icon view.
+- Added a matching accent border to the target folder row in list/details view on GTK 3.20 and newer.
+- Kept insertion-before/after feedback unchanged and avoided tinting the entire file-view background.
+- Uses the active GTK theme's selected color so the indicator follows the user's theme.
+

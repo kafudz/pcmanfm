@@ -77,6 +77,30 @@ void pcmanfm_modern_ui_init(void)
                    "    -GtkTreeView-horizontal-separator: 8;\n"
                    "}\n");
 
+    /* Highlight the exact folder that can receive a drop. GtkIconView draws
+     * its DROP_INTO target with gtk_render_focus(), so its outline properties
+     * control that item's feedback without tinting the whole file view. */
+    add_screen_css(screen,
+                   "iconview.view {\n"
+                   "    outline-color: @theme_selected_bg_color;\n"
+                   "    outline-style: solid;\n"
+                   "    outline-width: 2px;\n"
+                   "    outline-offset: 2px;\n"
+                   "    -gtk-outline-radius: 5px;\n"
+                   "}\n");
+
+#if GTK_CHECK_VERSION(3, 20, 0)
+    /* GtkTreeView marks a folder drop target with DROP_ACTIVE and the 'into'
+     * style class. Keep before/after insertion feedback unchanged. */
+    add_screen_css(screen,
+                   "treeview.view:drop(active).into {\n"
+                   "    border-color: @theme_selected_bg_color;\n"
+                   "    border-style: solid;\n"
+                   "    border-width: 2px;\n"
+                   "    border-radius: 5px;\n"
+                   "}\n");
+#endif
+
     /* Keep the side-pane divider visible but quiet. It should not disappear
      * when a theme supplies its own shadow or border treatment. */
     add_screen_css(screen,
