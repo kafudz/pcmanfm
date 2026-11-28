@@ -770,83 +770,43 @@ static void on_folder_view_sel_changed(FmFolderView* fv, gint n_sel, FmTabPage* 
     GString *str;
     g_free(msg);
 
-    if(n_sel > 0)
+    if (n_sel > 0)
     {
         str = g_string_sized_new(64);
-        /* FIXME: display total size of all selected files. */
-        if(n_sel == 1) /* only one file is selected */
+        if (n_sel == 1) /* only one file is selected */
         {
-            FmFileInfoList* files = fm_folder_view_dup_selected_files(fv);
-            FmFileInfo* fi = fm_file_info_list_peek_head(files);
-            const char* size_str = fm_file_info_get_disp_size(fi);
+            FmFileInfoList *files = fm_folder_view_dup_selected_files(fv);
+            FmFileInfo *fi = files ? fm_file_info_list_peek_head(files) : NULL;
 #if FM_CHECK_VERSION(1, 2, 0)
             GList *l;
 #endif
-            if(size_str)
-            {
-                /* Note to translators: this is the information (name, size, type)
-                   about the selected file in the status bar */
-                g_string_printf(str, _("\"%s\" (%s) %s"),
-                            fm_file_info_get_disp_name(fi),
-                            size_str ? size_str : "",
-                            fm_file_info_get_desc(fi));
-            }
-            else
-            {
-                /* Note to translators: this is the information (name, type)
-                   about the selected file in the status bar */
-                g_string_printf(str, _("\"%s\" %s"),
-                            fm_file_info_get_disp_name(fi),
-                            fm_file_info_get_desc(fi));
-            }
-#if FM_CHECK_VERSION(1, 2, 0)
-            /* ---- statusbar plugins support ---- */
-            CHECK_MODULES();
-            for (l = _tab_page_modules; l; l = l->next)
-            {
-                FmTabPageStatusInit *module = l->data;
-                char *message = module->sel_message(files, n_sel);
-                if (message && message[0])
-                {
-                    g_string_append_c(str, ' ');
-                    g_string_append(str, message);
-                }
-                g_free(message);
-            }
-#endif
-            fm_file_info_list_unref(files);
-        }
-        else
-        {
-            FmFileInfoList* files;
-            goffset sum;
-            GList *l;
-            char size_str[128];
-
+            /* The selection can change while the folder model is updating.
+             * Keep a valid status message if the selected-file snapshot is empty. */
             g_string_printf(str, ngettext("%d item selected", "%d items selected", n_sel), n_sel);
-            /* don't count if too many files are selected, that isn't lightweight */
-            if (n_sel < 1000)
+            if (fi)
             {
-                sum = 0;
-                files = fm_folder_view_dup_selected_files(fv);
-                for (l = fm_file_info_list_peek_head_link(files); l; l = l->next)
+                const char *size_str = fm_file_info_get_disp_size(fi);
+
+                if (size_str)
                 {
-                    if (fm_file_info_is_dir(l->data))
-                    {
-                        /* if we got a directory then we cannot tell it's size
-                           unless we do deep count but we cannot afford it */
-                        sum = -1;
-                        break;
-                    }
-                    sum += fm_file_info_get_size(l->data);
+                    /* Note to translators: this is the information (name, size, type)
+                       about the selected file in the status bar */
+                    g_string_printf(str, _("\"%s\" (%s) %s"),
+                                    fm_file_info_get_disp_name(fi), size_str,
+                                    fm_file_info_get_desc(fi));
                 }
-                if (sum >= 0)
+                else
                 {
-                    fm_file_size_to_str(size_str, sizeof(size_str), sum,
-                                        fm_config->si_unit);
-                    g_string_append_printf(str, " (%s)", size_str);
+                    /* Note to translators: this is the information (name, type)
+                       about the selected file in the status bar */
+                    g_string_printf(str, _("\"%s\" %s"),
+                                    fm_file_info_get_disp_name(fi),
+                                    fm_file_info_get_desc(fi));
                 }
+            }
 #if FM_CHECK_VERSION(1, 2, 0)
+            if (fi)
+            {
                 /* ---- statusbar plugins support ---- */
                 CHECK_MODULES();
                 for (l = _tab_page_modules; l; l = l->next)
@@ -860,8 +820,70 @@ static void on_folder_view_sel_changed(FmFolderView* fv, gint n_sel, FmTabPage* 
                     }
                     g_free(message);
                 }
+            }
 #endif
+            if (files)
                 fm_file_info_list_unref(files);
+        }
+        else
+        {
+            FmFileInfoList *files = NULL;
+            goffset sum = 0;
+            GList *l;
+            char size_str[128];
+
+            g_string_printf(str, ngettext("%d item selected", "%d items selected", n_sel), n_sel);
+            /* don't count if too many files are selected, that isn't lightweight */
+            if (n_sel < 1000)
+            {
+                files = fm_folder_view_dup_selected_files(fv);
+                for (l = files ? fm_file_info_list_peek_head_link(files) : NULL;
+                     l; l = l->next)
+                {
+                    goffset file_size;
+
+                    if (fm_file_info_is_dir(l->data))
+                    {
+                        /* if we got a directory then we cannot tell it's size
+                           unless we do deep count but we cannot afford it */
+                        sum = -1;
+                        break;
+                    }
+                    file_size = fm_file_info_get_size(l->data);
+                    /* Avoid signed overflow for very large sparse/virtual files. */
+                    if (file_size < 0 || sum > G_MAXINT64 - file_size)
+                    {
+                        sum = -1;
+                        break;
+                    }
+                    sum += file_size;
+                }
+                if (files && sum >= 0)
+                {
+                    fm_file_size_to_str(size_str, sizeof(size_str), sum,
+                                        fm_config->si_unit);
+                    g_string_append_printf(str, " (%s)", size_str);
+                }
+#if FM_CHECK_VERSION(1, 2, 0)
+                if (files && fm_file_info_list_peek_head_link(files))
+                {
+                    /* ---- statusbar plugins support ---- */
+                    CHECK_MODULES();
+                    for (l = _tab_page_modules; l; l = l->next)
+                    {
+                        FmTabPageStatusInit *module = l->data;
+                        char *message = module->sel_message(files, n_sel);
+                        if (message && message[0])
+                        {
+                            g_string_append_c(str, ' ');
+                            g_string_append(str, message);
+                        }
+                        g_free(message);
+                    }
+                }
+#endif
+                if (files)
+                    fm_file_info_list_unref(files);
             }
             /* FIXME: can we show some more info on selection?
                that isn't lightweight if a lot of files are selected */

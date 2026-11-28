@@ -106,6 +106,7 @@ static void win_update_active_view(FmMainWin* win);
 static void win_update_pathbar_visibility(FmMainWin *win);
 static void connect_page_views(FmMainWin* win, FmTabPage* page);
 static void connect_view_signals(FmMainWin* win, FmFolderView* fv);
+static void disconnect_view_signals(FmMainWin* win, FmFolderView* fv);
 #if FM_CHECK_VERSION(1, 0, 2)
 static void on_folder_view_filter_changed(FmFolderView* fv, FmMainWin* win);
 #endif
@@ -140,6 +141,10 @@ static void on_size_default(GtkAction *act, FmMainWin *win);
 static void on_notebook_switch_page(GtkNotebook* nb, gpointer* page, guint num, FmMainWin* win);
 static void on_notebook_page_added(GtkNotebook* nb, GtkWidget* page, guint num, FmMainWin* win);
 static void on_notebook_page_removed(GtkNotebook* nb, GtkWidget* page, guint num, FmMainWin* win);
+static void on_tab_page_chdir(FmTabPage* page, FmPath* path, FmMainWin* win);
+static void on_tab_page_status_text(FmTabPage* page, guint type, const char* status_text, FmMainWin* win);
+static void on_tab_page_got_focus(FmTabPage* page, FmMainWin* win);
+static void on_tab_page_loaded(FmTabPage *page, FmMainWin *win);
 
 #include "main-win-ui.c" /* ui xml definitions and actions */
 
@@ -422,13 +427,18 @@ static void on_folder_view_sel_changed(FmFolderView* fv, gint n_sel, FmMainWin* 
     if (n_sel == 1)
     {
         FmFileInfoList *files = fm_folder_view_dup_selected_files(fv);
-        FmFileInfo *fi = fm_file_info_list_peek_head(files);
+        FmFileInfo *fi = files ? fm_file_info_list_peek_head(files) : NULL;
+
+        if (fi)
+        {
 #if FM_CHECK_VERSION(1, 2, 0)
-        if (fm_file_info_can_set_name(fi))
+            if (fm_file_info_can_set_name(fi))
 #endif
-          if (!fm_file_info_is_shortcut(fi) && !fm_file_info_is_desktop_entry(fi))
-            has_selected = TRUE;
-        fm_file_info_list_unref(files);
+                if (!fm_file_info_is_shortcut(fi) && !fm_file_info_is_desktop_entry(fi))
+                    has_selected = TRUE;
+        }
+        if (files)
+            fm_file_info_list_unref(files);
     }
     act = gtk_ui_manager_get_action(win->ui, "/menubar/EditMenu/Rename");
     gtk_action_set_sensitive(act, has_selected);
@@ -1165,6 +1175,52 @@ static void fm_main_win_destroy(GtkObject *object)
         }
 
         all_wins = g_slist_remove(all_wins, win);
+
+        /* The page-removed callback is disconnected during teardown, so do
+         * its per-page cleanup here before any folder view can outlive us. */
+        {
+            gint i, n = gtk_notebook_get_n_pages(win->notebook);
+
+            for (i = 0; i < n; i++)
+            {
+                FmTabPage *page = FM_TAB_PAGE(
+                    gtk_notebook_get_nth_page(win->notebook, i));
+                guint j, n_views = fm_tab_page_get_n_panes(page);
+
+                g_signal_handlers_disconnect_by_func(page,
+                    on_tab_page_splitter_pos_changed, win);
+                g_signal_handlers_disconnect_by_func(page,
+                    on_tab_page_chdir, win);
+                g_signal_handlers_disconnect_by_func(page,
+                    on_tab_page_status_text, win);
+                g_signal_handlers_disconnect_by_func(page,
+                    on_tab_page_got_focus, win);
+                g_signal_handlers_disconnect_by_func(page,
+                    on_tab_page_loaded, win);
+                if (page->side_pane)
+                {
+                    g_signal_handlers_disconnect_by_func(page->side_pane,
+                        on_side_pane_mode_changed, win);
+                    g_signal_handlers_disconnect_by_func(page->side_pane,
+                        on_side_pane_chdir, win);
+                }
+                for (j = 0; j < n_views; j++)
+                    disconnect_view_signals(win,
+                        fm_tab_page_get_nth_view(page, j));
+            }
+        }
+
+        /* win_update_active_view() owns a reference independent of the
+         * notebook hierarchy. Release it explicitly during window teardown. */
+        if (win->folder_view)
+        {
+            fm_folder_view_set_active(win->folder_view, FALSE);
+            g_object_unref(win->folder_view);
+            win->folder_view = NULL;
+        }
+        win->current_page = NULL;
+        win->nav_history = NULL;
+        win->side_pane = NULL;
 
         /* give the docked location bar back to its page before the slot is
            destroyed together with the window */
@@ -2461,6 +2517,22 @@ static void connect_view_signals(FmMainWin* win, FmFolderView* fv)
     fm_folder_view_set_active(fv, FALSE);
 }
 
+static void disconnect_view_signals(FmMainWin *win, FmFolderView *fv)
+{
+    if (!fv)
+        return;
+
+    g_signal_handlers_disconnect_by_func(fv, on_view_key_press_event, win);
+    g_signal_handlers_disconnect_by_func(fv, on_folder_view_sort_changed, win);
+    g_signal_handlers_disconnect_by_func(fv, on_folder_view_sel_changed, win);
+#if FM_CHECK_VERSION(1, 0, 2)
+    g_signal_handlers_disconnect_by_func(fv, on_folder_view_filter_changed, win);
+#endif
+    g_signal_handlers_disconnect_by_func(fv, on_folder_view_clicked, win);
+    if (g_object_get_data(G_OBJECT(fv), "fm-main-win") == win)
+        g_object_set_data(G_OBJECT(fv), "fm-main-win", NULL);
+}
+
 static void connect_page_views(FmMainWin* win, FmTabPage* page)
 {
     guint i, n = fm_tab_page_get_n_panes(page);
@@ -2502,6 +2574,7 @@ static void on_notebook_page_removed(GtkNotebook* nb, GtkWidget* page, guint num
 {
     FmTabPage* tab_page = FM_TAB_PAGE(page);
     FmFolderView* folder_view = fm_tab_page_get_folder_view(tab_page);
+    guint i, n_views = fm_tab_page_get_n_panes(tab_page);
 
     g_debug("FmMainWin[%p]: removed page %u[%p](view=%p); %u pages left", win,
             num, page, folder_view, gtk_notebook_get_n_pages(nb));
@@ -2516,25 +2589,17 @@ static void on_notebook_page_removed(GtkNotebook* nb, GtkWidget* page, guint num
                                          on_tab_page_got_focus, win);
     g_signal_handlers_disconnect_by_func(tab_page,
                                          on_tab_page_loaded, win);
-    if(folder_view)
+    /* Every pane view is connected to the window, not just the active view.
+     * Disconnect them all before a removed tab can outlive its window. */
+    for (i = 0; i < n_views; i++)
+        disconnect_view_signals(win, fm_tab_page_get_nth_view(tab_page, i));
+    if (tab_page->side_pane)
     {
-        g_signal_handlers_disconnect_by_func(folder_view,
-                                             on_view_key_press_event, win);
-        g_signal_handlers_disconnect_by_func(folder_view,
-                                             on_folder_view_sort_changed, win);
-        g_signal_handlers_disconnect_by_func(folder_view,
-                                             on_folder_view_sel_changed, win);
-#if FM_CHECK_VERSION(1, 0, 2)
-        g_signal_handlers_disconnect_by_func(folder_view,
-                                             on_folder_view_filter_changed, win);
-#endif
-        g_signal_handlers_disconnect_by_func(folder_view,
-                                             on_folder_view_clicked, win);
+        g_signal_handlers_disconnect_by_func(tab_page->side_pane,
+                                             on_side_pane_mode_changed, win);
+        g_signal_handlers_disconnect_by_func(tab_page->side_pane,
+                                             on_side_pane_chdir, win);
     }
-    g_signal_handlers_disconnect_by_func(tab_page->side_pane,
-                                         on_side_pane_mode_changed, win);
-    g_signal_handlers_disconnect_by_func(tab_page->side_pane,
-                                         on_side_pane_chdir, win);
 
     if(tab_page == win->current_page)
     {

@@ -31,6 +31,7 @@
 #include <sys/socket.h>
 #include <sys/un.h>
 #include <stdlib.h>
+#include <fcntl.h>
 #include <unistd.h>
 #include <errno.h>
 #include <stdio.h>
@@ -42,6 +43,8 @@ struct _SingleInstClient
     char* cwd;
     int screen_num;
     GPtrArray* argv;
+    GString* line_buffer; /* persists across partial socket reads */
+    gsize received_bytes;
     const GOptionEntry* opt_entries;
     SingleInstCallback callback;
     guint watch;
@@ -60,6 +63,8 @@ static void single_inst_client_free(SingleInstClient* client)
     if (client->watch)
         g_source_remove(client->watch);
     g_free(client->cwd);
+    if (client->line_buffer)
+        g_string_free(client->line_buffer, TRUE);
     g_ptr_array_foreach(client->argv, (GFunc)g_free, NULL);
     g_ptr_array_free(client->argv, TRUE);
     g_slice_free(SingleInstClient, client);
@@ -308,85 +313,171 @@ void single_inst_finalize(SingleInstData* data)
     }
 }
 
-static inline void parse_args(SingleInstClient* client)
+static gboolean parse_args(SingleInstClient* client)
 {
-    GOptionContext* ctx = g_option_context_new("");
-    int argc = client->argv->len;
-    char** argv = g_new(char*, argc + 1);
+    GOptionContext* ctx;
+    GError *error = NULL;
+    int argc;
+    char **argv;
+    gboolean parsed;
+
+    if (!client->cwd || client->screen_num < 0 || !client->argv)
+        return FALSE;
+
+    ctx = g_option_context_new("");
+    /* A peer must not be able to trigger GOption's automatic exit(0). */
+    g_option_context_set_help_enabled(ctx, FALSE);
+    argc = (int)client->argv->len;
+    argv = g_new(char*, argc + 1);
     memcpy(argv, client->argv->pdata, sizeof(char*) * argc);
     argv[argc] = NULL;
     g_option_context_add_main_entries(ctx, client->opt_entries, NULL);
-    g_option_context_parse(ctx, &argc, &argv, NULL);
+    parsed = g_option_context_parse(ctx, &argc, &argv, &error);
+    if (!parsed)
+    {
+        g_warning("Ignoring invalid command from another PCManFM instance: %s",
+                  error ? error->message : "unknown option error");
+        if (error)
+            g_error_free(error);
+    }
     g_free(argv);
     g_option_context_free(ctx);
-    if(client->callback)
+
+    if (parsed && client->callback)
         client->callback(client->cwd, client->screen_num);
+    return parsed;
+}
+
+#define SINGLE_INST_MAX_LINE_LENGTH (1024 * 1024)
+#define SINGLE_INST_MAX_REQUEST_LENGTH (16 * 1024 * 1024)
+#define SINGLE_INST_MAX_ARGUMENTS 4096
+
+/* Decode one complete line from the local IPC stream. The framing is
+ * newline-delimited, but reads may stop in the middle of a line. */
+static gboolean single_inst_client_process_line(SingleInstClient *client,
+                                                 const char *line,
+                                                 gsize length)
+{
+    char *encoded;
+
+    if (length == 0)
+        return TRUE; /* preserve the old behavior for empty records */
+
+    encoded = g_strndup(line, length);
+    if (!client->cwd)
+        client->cwd = g_strcompress(encoded);
+    else if (client->screen_num == -1)
+    {
+        char *end = NULL;
+        gint64 value;
+
+        errno = 0;
+        value = g_ascii_strtoll(encoded, &end, 10);
+        if (errno == ERANGE || end == encoded || *end != '\0'
+            || value > G_MAXINT)
+        {
+            g_free(encoded);
+            return FALSE;
+        }
+        client->screen_num = value < 0 ? 0 : (int)value;
+    }
+    else
+    {
+        char *argument;
+
+        if (client->argv->len >= SINGLE_INST_MAX_ARGUMENTS + 1)
+        {
+            g_free(encoded);
+            return FALSE;
+        }
+        argument = g_strcompress(encoded);
+        g_ptr_array_add(client->argv, argument);
+    }
+    g_free(encoded);
+    return TRUE;
 }
 
 static gboolean on_client_socket_event(GIOChannel* ioc, GIOCondition cond, gpointer user_data)
 {
     SingleInstClient* client = (SingleInstClient*)user_data;
 
-    if ( cond & (G_IO_IN|G_IO_PRI) )
+    if (cond & (G_IO_IN | G_IO_PRI | G_IO_HUP))
     {
-        GString *str = g_string_sized_new(1024);
-        gsize got;
-        gchar ch;
+        gchar buffer[4096];
+        gsize got = 0;
+        gsize i;
         GIOStatus status;
 
-        while((status = g_io_channel_read_chars(ioc, &ch, 1, &got, NULL)) == G_IO_STATUS_NORMAL)
+        /* Read in chunks to avoid one system call per byte while retaining
+         * the partial-line buffer between asynchronous notifications. */
+        while ((status = g_io_channel_read_chars(ioc, buffer, sizeof(buffer),
+                                                 &got, NULL))
+               == G_IO_STATUS_NORMAL)
         {
-            if(ch != '\n')
+            if (got == 0)
+                break;
+            if (got > SINGLE_INST_MAX_REQUEST_LENGTH - client->received_bytes)
             {
-                if(ch < 0x20) /* zero or control char */
-                {
-                    g_error("client connection: invalid char %#x", (int)ch);
-                    break;
-                }
-                g_string_append_c(str, ch);
-                continue;
-            }
-            if(str->len)
-            {
-                char *line = g_strndup(str->str, str->len);
-
-                g_string_truncate(str, 0);
-                g_debug("line = %s", line);
-                if(!client->cwd)
-                    client->cwd = g_strcompress(line);
-                else if(client->screen_num == -1)
-                {
-                    client->screen_num = atoi(line);
-                    if(client->screen_num < 0)
-                        client->screen_num = 0;
-                }
-                else
-                {
-                    char* str = g_strcompress(line);
-                    g_ptr_array_add(client->argv, str);
-                }
-                g_free(line);
-            }
-        }
-        g_string_free(str, TRUE);
-        switch(status)
-        {
-            case G_IO_STATUS_ERROR:
+                g_warning("Discarding oversized PCManFM IPC request");
                 cond |= G_IO_ERR;
                 break;
-            case G_IO_STATUS_EOF:
-                cond |= G_IO_HUP;
-            default:
+            }
+            client->received_bytes += got;
+
+            for (i = 0; i < got; i++)
+            {
+                gchar ch = buffer[i];
+
+                if (ch == '\n')
+                {
+                    if (!single_inst_client_process_line(client,
+                                                         client->line_buffer->str,
+                                                         client->line_buffer->len))
+                    {
+                        g_warning("Discarding malformed command from another PCManFM instance");
+                        cond |= G_IO_ERR;
+                        break;
+                    }
+                    g_string_truncate(client->line_buffer, 0);
+                    continue;
+                }
+                if ((guchar)ch < 0x20)
+                {
+                    /* A bad local client must not be able to abort the file manager. */
+                    g_warning("Discarding invalid byte in PCManFM IPC request");
+                    cond |= G_IO_ERR;
+                    break;
+                }
+                if (client->line_buffer->len >= SINGLE_INST_MAX_LINE_LENGTH)
+                {
+                    g_warning("Discarding oversized PCManFM IPC record");
+                    cond |= G_IO_ERR;
+                    break;
+                }
+                g_string_append_c(client->line_buffer, ch);
+            }
+            if (cond & G_IO_ERR)
                 break;
         }
+
+        if (status == G_IO_STATUS_ERROR)
+            cond |= G_IO_ERR;
+        else if (status == G_IO_STATUS_EOF)
+            cond |= G_IO_HUP;
     }
 
-    if(cond & (G_IO_ERR|G_IO_HUP))
+    if (cond & (G_IO_ERR | G_IO_HUP))
     {
-        if(! (cond & G_IO_ERR) ) /* if there is no error */
+        if (!(cond & G_IO_ERR))
         {
-            /* try to parse argv */
-            parse_args(client);
+            /* EOF completes a final unterminated record as well. */
+            if (client->line_buffer->len > 0
+                && !single_inst_client_process_line(client,
+                                                    client->line_buffer->str,
+                                                    client->line_buffer->len))
+                g_warning("Discarding malformed final PCManFM IPC record");
+            else
+                parse_args(client);
         }
         clients = g_list_remove(clients, client);
         single_inst_client_free(client);
@@ -405,18 +496,33 @@ static gboolean on_server_socket_event(GIOChannel* ioc, GIOCondition cond, gpoin
         int client_sock = accept(g_io_channel_unix_get_fd(ioc), NULL, 0);
         if(client_sock != -1)
         {
-            SingleInstClient* client = g_slice_new0(SingleInstClient);
-            client->channel = g_io_channel_unix_new(client_sock);
-            g_io_channel_set_encoding(client->channel, NULL, NULL);
-            client->screen_num = -1;
-            client->argv = g_ptr_array_new();
-            client->callback = data->cb;
-            client->opt_entries = data->opt_entries;
-            g_ptr_array_add(client->argv, g_strdup(g_get_prgname()));
-            client->watch = g_io_add_watch(client->channel, G_IO_IN|G_IO_PRI|G_IO_ERR|G_IO_HUP,
-                                           on_client_socket_event, client);
-            clients = g_list_prepend(clients, client);
-            /* g_debug("accept new client"); */
+            int flags = fcntl(client_sock, F_GETFL, 0);
+
+            /* Never let a slow local client block the GTK main loop. */
+            if (flags == -1 || fcntl(client_sock, F_SETFL, flags | O_NONBLOCK) == -1)
+            {
+                g_warning("Could not make PCManFM IPC client non-blocking: %s",
+                          g_strerror(errno));
+                close(client_sock);
+            }
+            else
+            {
+                SingleInstClient* client = g_slice_new0(SingleInstClient);
+                client->channel = g_io_channel_unix_new(client_sock);
+                g_io_channel_set_encoding(client->channel, NULL, NULL);
+                g_io_channel_set_buffered(client->channel, FALSE);
+                client->screen_num = -1;
+                client->argv = g_ptr_array_new();
+                client->line_buffer = g_string_sized_new(256);
+                client->callback = data->cb;
+                client->opt_entries = data->opt_entries;
+                g_ptr_array_add(client->argv, g_strdup(g_get_prgname()));
+                client->watch = g_io_add_watch(client->channel,
+                                               G_IO_IN | G_IO_PRI | G_IO_ERR | G_IO_HUP,
+                                               on_client_socket_event, client);
+                clients = g_list_prepend(clients, client);
+                /* g_debug("accept new client"); */
+            }
         }
         else
             g_debug("accept() failed!\n%s", g_strerror(errno));

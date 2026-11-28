@@ -19,8 +19,7 @@ static void add_screen_css(GdkScreen *screen, const char *css)
 }
 #endif
 
-/* Keep the location bars consistent and remove custom borders and shadows
- * where the side-pane divider meets the left location bar. */
+/* Compact, theme-adaptive styling for the main file-manager surfaces. */
 void pcmanfm_modern_ui_init(void)
 {
 #if GTK_CHECK_VERSION(3, 0, 0)
@@ -29,47 +28,102 @@ void pcmanfm_modern_ui_init(void)
     if (!screen)
         return;
 
+    /* Keep the interface compact and flat while inheriting the active GTK
+     * theme's colours. This avoids baking in a light/dark palette. */
     add_screen_css(screen,
-                   ".pane-locbox { padding-left: 6px; border-bottom: none; box-shadow: none; }\n"
+                   ".toolbar-row {\n"
+                   "    background-color: @theme_bg_color;\n"
+                   "    border-bottom: 1px solid alpha(@theme_fg_color, 0.10);\n"
+                   "}\n"
+                   "toolbar {\n"
+                   "    padding: 3px 6px;\n"
+                   "    border-style: none;\n"
+                   "    background-image: none;\n"
+                   "    box-shadow: none;\n"
+                   "}\n"
+                   "toolbar button {\n"
+                   "    min-width: 26px;\n"
+                   "    min-height: 26px;\n"
+                   "    margin: 0 1px;\n"
+                   "    padding: 3px 6px;\n"
+                   "    border: 1px solid transparent;\n"
+                   "    border-radius: 5px;\n"
+                   "    background-image: none;\n"
+                   "    box-shadow: none;\n"
+                   "}\n"
+                   "toolbar button:hover {\n"
+                   "    background-color: alpha(@theme_fg_color, 0.08);\n"
+                   "}\n"
+                   "toolbar button:active {\n"
+                   "    background-color: alpha(@theme_fg_color, 0.14);\n"
+                   "}\n"
+                   "notebook { border-width: 0; }\n"
+                   "notebook header {\n"
+                   "    border-style: none;\n"
+                   "    background-color: @theme_bg_color;\n"
+                   "}\n"
+                   "notebook tab { padding: 4px 10px; }\n"
+                   "statusbar {\n"
+                   "    padding: 2px 6px;\n"
+                   "    border-top: 1px solid alpha(@theme_fg_color, 0.10);\n"
+                   "}\n"
+                   "statusbar label { padding: 1px 3px; }\n"
+                   "treeview.view {\n"
+                   "    -GtkTreeView-vertical-separator: 4;\n"
+                   "    -GtkTreeView-horizontal-separator: 8;\n"
+                   "}\n");
+
+    /* Keep the side-pane divider visible but quiet. It should not disappear
+     * when a theme supplies its own shadow or border treatment. */
+    add_screen_css(screen,
+                   ".side-pane {\n"
+                   "    border-right: 1px solid alpha(@theme_fg_color, 0.18);\n"
+                   "    box-shadow: none;\n"
+                   "}\n"
+                   ".pane-locbox {\n"
+                   "    padding-left: 6px;\n"
+                   "    border-bottom: none;\n"
+                   "    box-shadow: none;\n"
+                   "}\n"
                    ".pane-box { box-shadow: none; }\n"
-                   ".side-pane { border-right: none; box-shadow: none; }\n"
                    "paned > separator { box-shadow: none; }\n");
 
-    /* The full-width bar above the side pane: the same space on both sides,
-     * whatever the per-pane rules above say about the left edge. */
+    /* The full-width location bar above the side pane has no extra inset. */
     add_screen_css(screen,
                    ".pane-locbox.locbar-docked { padding: 0; }\n");
 
-    /* No coloured focus accent on the location bars. Themes such as Fluent draw
-     * the accent as a border image or a background gradient, not only as a
-     * border colour, so those are cleared as well. */
+    /* Strip inconsistent theme gradients while retaining a visible keyboard
+     * focus ring that follows the user's selected GTK accent colour. */
     add_screen_css(screen,
                    ".pane-locbox entry, .pane-locbox entry:hover,\n"
                    ".pane-locbox entry:focus, .pane-locbox entry:active {\n"
                    "    border-image: none;\n"
                    "    background-image: none;\n"
-                   "    border-color: transparent;\n"
                    "    box-shadow: none;\n"
-                   "    outline-style: none;\n"
-                   "    outline-width: 0;\n"
                    "}\n"
-                   ".pane-locbox button:focus, .pane-locbox button:checked,\n"
-                   ".pane-locbox button:active {\n"
+                   ".pane-locbox entry:focus {\n"
+                   "    border-color: alpha(@theme_selected_bg_color, 0.75);\n"
+                   "}\n"
+                   ".pane-locbox button, .pane-locbox button:hover,\n"
+                   ".pane-locbox button:checked, .pane-locbox button:active,\n"
+                   ".pane-locbox button:focus {\n"
                    "    border-image: none;\n"
                    "    background-image: none;\n"
-                   "    border-color: transparent;\n"
                    "    box-shadow: none;\n"
-                   "    outline-style: none;\n"
-                   "    outline-width: 0;\n"
+                   "}\n"
+                   ".pane-locbox button:focus {\n"
+                   "    border-color: alpha(@theme_selected_bg_color, 0.75);\n"
+                   "    background-color: alpha(@theme_selected_bg_color, 0.10);\n"
+                   "}\n"
+                   ".pane-locbox button:checked {\n"
+                   "    background-color: alpha(@theme_fg_color, 0.10);\n"
                    "}\n");
 
-    /* Side pane rows: compact, but with room between the rows and between
-     * each icon and its label. Row spacing in a tree view is only reachable
-     * through these style properties; padding on the cells has no effect. */
+    /* Compact side-pane rows with enough icon/label separation for scanning. */
     add_screen_css(screen,
                    ".side-pane treeview.view {\n"
-                   "    -GtkTreeView-vertical-separator: 8;\n"
-                   "    -GtkTreeView-horizontal-separator: 10;\n"
+                   "    -GtkTreeView-vertical-separator: 6;\n"
+                   "    -GtkTreeView-horizontal-separator: 8;\n"
                    "}\n");
 #endif
 }
