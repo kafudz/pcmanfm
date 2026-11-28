@@ -34,7 +34,7 @@ void pcmanfm_modern_ui_init(void)
                    ".toolbar-row {\n"
                    "    background-color: transparent;\n"
                    "    background-image: none;\n"
-                   "    border-bottom: 1px solid alpha(@theme_fg_color, 0.10);\n"
+                   "    border-bottom: 1px solid #30343b;\n"
                    "    box-shadow: none;\n"
                    "}\n"
                    "toolbar {\n"
@@ -69,7 +69,7 @@ void pcmanfm_modern_ui_init(void)
                    "notebook tab { padding: 4px 10px; }\n"
                    "statusbar {\n"
                    "    padding: 2px 6px;\n"
-                   "    border-top: 1px solid alpha(@theme_fg_color, 0.10);\n"
+                   "    border-top: 1px solid #30343b;\n"
                    "}\n"
                    "statusbar label { padding: 1px 3px; }\n"
                    "treeview.view {\n"
@@ -81,7 +81,7 @@ void pcmanfm_modern_ui_init(void)
      * when a theme supplies its own shadow or border treatment. */
     add_screen_css(screen,
                    ".side-pane {\n"
-                   "    border-right: 1px solid alpha(@theme_fg_color, 0.18);\n"
+                   "    border-right: 1px solid #30343b;\n"
                    "    box-shadow: none;\n"
                    "}\n"
                    ".pane-locbox {\n"

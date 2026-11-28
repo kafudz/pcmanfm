@@ -154,13 +154,13 @@ static void init_pane_css(void)
         "    padding-right: 0;\n"
         "}\n"
         ".side-pane {\n"
-        "    border-right: 2px solid alpha(@theme_fg_color, 0.18);\n"
+        "    border-right: 2px solid #30343b;\n"
         "}\n"
         /* Minimal per-pane location bar: slim, no boxed entry, only a
            hairline underneath to separate it from the files. */
         ".pane-locbox {\n"
         "    padding: 2px 6px;\n"
-        "    border-bottom: 1px solid alpha(@theme_fg_color, 0.10);\n"
+        "    border-bottom: 1px solid #30343b;\n"
         "}\n"
         /* Attach the left pane's location bar to the pane edge. */
         ".pane-box:first-child .pane-locbox {\n"

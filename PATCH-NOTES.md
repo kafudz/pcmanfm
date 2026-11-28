@@ -52,3 +52,8 @@ Before merging upstream, build against the target distribution's GTK/libfm versi
 - Removed the solid background from the shared toolbar/location row and GTK toolbar; both now use transparent backgrounds.
 - Toolbar buttons are transparent at rest, while subtle theme-adaptive hover and active feedback is retained.
 - Kept the understated bottom divider so the toolbar remains visually separated without a filled color surface.
+
+### Dark border color adjustment
+
+- Replaced the light theme-foreground-based separator strokes with a consistent dark charcoal `#30343b` on the toolbar row, status bar, side-pane divider, and per-pane location bars.
+- Kept focus and selection indicators accent-colored; only neutral separator/border lines were changed.
