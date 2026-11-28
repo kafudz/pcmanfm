@@ -1015,6 +1015,11 @@ static void fm_main_win_init(FmMainWin *win)
     /* the toolbar and the location bar share one row: toolbar on the left,
        the location bar takes the rest */
     toolbar_row = gtk_hbox_new(FALSE, 0);
+#if GTK_CHECK_VERSION(3, 0, 0)
+    /* lets themes draw one line across the whole row (toolbar + location bar) */
+    gtk_style_context_add_class(gtk_widget_get_style_context(toolbar_row),
+                                "toolbar-row");
+#endif
     gtk_box_pack_start(GTK_BOX(toolbar_row), GTK_WIDGET(win->toolbar), FALSE, TRUE, 0);
     gtk_box_pack_start(vbox, toolbar_row, FALSE, TRUE, 0);
 
