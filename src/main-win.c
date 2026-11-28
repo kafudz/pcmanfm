@@ -540,92 +540,6 @@ static void load_bookmarks(FmMainWin* win, GtkUIManager* ui)
     create_bookmarks_menu(win);
 }
 
-static void _update_hist_buttons(FmMainWin* win);
-
-static void on_history_item(GtkMenuItem* mi, FmMainWin* win)
-{
-    FmTabPage* page = win->current_page;
-#if FM_CHECK_VERSION(1, 0, 2)
-    guint l = GPOINTER_TO_UINT(g_object_get_qdata(G_OBJECT(mi), main_win_qdata));
-#else
-    GList* l = g_object_get_qdata(G_OBJECT(mi), main_win_qdata);
-#endif
-    fm_tab_page_history(page, l);
-    _update_hist_buttons(win);
-}
-
-static void disconnect_history_item(GtkWidget* mi, gpointer win)
-{
-    g_signal_handlers_disconnect_by_func(mi, on_history_item, win);
-    gtk_widget_destroy(mi);
-}
-
-static void on_history_selection_done(GtkMenuShell* menu, gpointer win)
-{
-    g_debug("history selection done");
-    g_signal_handlers_disconnect_by_func(menu, on_history_selection_done, NULL);
-    /* cleanup: disconnect and delete all items */
-    gtk_container_foreach(GTK_CONTAINER(menu), disconnect_history_item, win);
-}
-
-#if FM_CHECK_VERSION(1, 2, 0)
-static void on_show_history_menu(FmMenuToolItem* btn, FmMainWin* win)
-#else
-static void on_show_history_menu(GtkMenuToolButton* btn, FmMainWin* win)
-#endif
-{
-#if FM_CHECK_VERSION(1, 2, 0)
-    GtkMenuShell* menu = (GtkMenuShell*)fm_menu_tool_item_get_menu(btn);
-#else
-    GtkMenuShell* menu = (GtkMenuShell*)gtk_menu_tool_button_get_menu(btn);
-#endif
-#if FM_CHECK_VERSION(1, 0, 2)
-    guint i, cur = fm_nav_history_get_cur_index(win->nav_history);
-    FmPath* path;
-#else
-    const GList* l;
-    const GList* cur = fm_nav_history_get_cur_link(win->nav_history);
-#endif
-
-    /* delete old items */
-    gtk_container_foreach(GTK_CONTAINER(menu), (GtkCallback)gtk_widget_destroy, NULL);
-
-#if FM_CHECK_VERSION(1, 0, 2)
-    for (i = 0; (path = fm_nav_history_get_nth_path(win->nav_history, i)); i++)
-    {
-#else
-    for(l = fm_nav_history_list(win->nav_history); l; l=l->next)
-    {
-        const FmNavHistoryItem* item = (FmNavHistoryItem*)l->data;
-        FmPath* path = item->path;
-#endif
-        char* str = fm_path_display_name(path, TRUE);
-        GtkWidget* mi;
-#if FM_CHECK_VERSION(1, 0, 2)
-        if (i == cur)
-#else
-        if( l == cur )
-#endif
-        {
-            mi = gtk_check_menu_item_new_with_label(str);
-            gtk_check_menu_item_set_draw_as_radio(GTK_CHECK_MENU_ITEM(mi), TRUE);
-            gtk_check_menu_item_set_active(GTK_CHECK_MENU_ITEM(mi), TRUE);
-        }
-        else
-            mi = gtk_menu_item_new_with_label(str);
-        g_free(str);
-
-#if FM_CHECK_VERSION(1, 0, 2)
-        g_object_set_qdata(G_OBJECT(mi), main_win_qdata, GUINT_TO_POINTER(i));
-#else
-        g_object_set_qdata_full(G_OBJECT(mi), main_win_qdata, (gpointer)l, NULL);
-#endif
-        g_signal_connect(mi, "activate", G_CALLBACK(on_history_item), win);
-        gtk_menu_shell_append(menu, mi);
-    }
-    g_signal_connect(menu, "selection-done", G_CALLBACK(on_history_selection_done), NULL);
-    gtk_widget_show_all( GTK_WIDGET(menu) );
-}
 
 static void on_tab_page_splitter_pos_changed(GtkPaned* paned, GParamSpec* ps, FmMainWin* win)
 {
@@ -753,11 +667,7 @@ static void on_toolsbar_changed(FmAppConfig *cfg, FmMainWin *win)
         gtk_widget_set_visible(toolitem, active);
         n = gtk_toolbar_get_item_index(win->toolbar, GTK_TOOL_ITEM(toolitem));
         toolitem = GTK_WIDGET(gtk_toolbar_get_nth_item(win->toolbar, n-1));
-        gtk_widget_set_visible(toolitem, active); /* Hist */
-#if FM_CHECK_VERSION(1, 2, 0)
-        toolitem = GTK_WIDGET(gtk_toolbar_get_nth_item(win->toolbar, n-2));
         gtk_widget_set_visible(toolitem, active); /* Prev */
-#endif
         toolitem = GTK_WIDGET(gtk_toolbar_get_nth_item(win->toolbar, n+1));
         gtk_widget_set_visible(toolitem, active); /* Up */
         toolitem = gtk_ui_manager_get_widget(win->ui, "/toolbar/Home");
@@ -994,32 +904,14 @@ static void fm_main_win_init(FmMainWin *win)
     gtk_toolbar_set_icon_size(win->toolbar, GTK_ICON_SIZE_SMALL_TOOLBAR);
     gtk_toolbar_set_style(win->toolbar, GTK_TOOLBAR_ICONS);
 
-#if FM_CHECK_VERSION(1, 2, 0)
-    /* create history button after 'Prev' and add a popup menu to it */
-    toolitem = fm_menu_tool_item_new();
-    gtk_toolbar_insert(win->toolbar, toolitem, 3);
-#else
-    /* create 'Prev' button manually and add a popup menu to it */
-    toolitem = (GtkToolItem*)g_object_new(GTK_TYPE_MENU_TOOL_BUTTON, NULL);
+#if !FM_CHECK_VERSION(1, 2, 0)
+    /* Older libfm versions do not provide the Previous toolbar item in the
+       UI definition. Add a plain tool button (no visited-history dropdown). */
+    toolitem = (GtkToolItem*)g_object_new(GTK_TYPE_TOOL_BUTTON, NULL);
     gtk_toolbar_insert(win->toolbar, toolitem, 1);
     act = gtk_ui_manager_get_action(ui, "/menubar/GoMenu/Prev");
     gtk_activatable_set_related_action(GTK_ACTIVATABLE(toolitem), act);
 #endif
-
-    /* set up history menu */
-    win->history_menu = gtk_menu_new();
-#if FM_CHECK_VERSION(1, 2, 0)
-    fm_menu_tool_item_set_menu(FM_MENU_TOOL_ITEM(toolitem), win->history_menu);
-    gtk_tool_item_set_tooltip_text(toolitem, _("Show history of visited folders"));
-#else
-    gtk_menu_tool_button_set_menu(GTK_MENU_TOOL_BUTTON(toolitem), win->history_menu);
-    gtk_menu_tool_button_set_arrow_tooltip_text(GTK_MENU_TOOL_BUTTON(toolitem),
-                                                _("Show history of visited folders"));
-#endif
-    g_signal_connect(toolitem, "show-menu", G_CALLBACK(on_show_history_menu), win);
-    atk_obj = gtk_widget_get_accessible(GTK_WIDGET(toolitem));
-    if (atk_obj)
-        atk_object_set_name(atk_obj, _("History"));
 
     gtk_box_pack_start( vbox, menubar, FALSE, TRUE, 0 );
     /* the toolbar and the location bar share one row: toolbar on the left,
@@ -2044,7 +1936,7 @@ static void on_show_toolbar(GtkToggleAction *action, FmMainWin *win)
     pcmanfm_save_config(FALSE);
 }
 
-/* toolbar items: NewWin NewTab Prev (Hist) Next Up Home (Location) Go */
+/* toolbar items: NewWin NewTab Prev Next Up Home (Location) Go */
 static void on_toolbar_new_win(GtkToggleAction *act, FmMainWin *win)
 {
     gboolean active = gtk_toggle_action_get_active(act);

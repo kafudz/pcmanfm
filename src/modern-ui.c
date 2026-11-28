@@ -86,20 +86,15 @@ void pcmanfm_modern_ui_init(void)
                    "}\n"
                    ".pane-locbox {\n"
                    "    padding-left: 6px;\n"
+                   "    border-bottom: none;\n"
                    "    box-shadow: none;\n"
                    "}\n"
                    ".pane-box { box-shadow: none; }\n"
                    "paned > separator { box-shadow: none; }\n");
 
-    /* The full-width location bar above the side pane has no extra inset and
-     * no hairline of its own: it sits inside .toolbar-row, which already draws
-     * the line under the whole row. (Undocked per-pane bars, dual-pane mode,
-     * keep their own hairline.) */
+    /* The full-width location bar above the side pane has no extra inset. */
     add_screen_css(screen,
-                   ".pane-locbox.locbar-docked {\n"
-                   "    padding: 0;\n"
-                   "    border-bottom: none;\n"
-                   "}\n");
+                   ".pane-locbox.locbar-docked { padding: 0; }\n");
 
     /* Strip inconsistent theme gradients while retaining a visible keyboard
      * focus ring that follows the user's selected GTK accent colour. */
